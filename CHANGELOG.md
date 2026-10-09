@@ -104,9 +104,46 @@ chain (YouTube verified reachable from UA via curl 2026-10-09T18:13Z).
 **Тесты**: 25/25 OK (18 предыдущих + 7 новых).
 `python -m unittest discover -s tests -p 'test_*.py'`
 
+## 2026-10-09T19:35Z — Fixation 004: F4 — episode spec writer (LLM brief → spec.json)
+
+**Context**: brief.md + bible/<show>.md → spec.json через Qwen3-Max (OpenRouter).
+Это второй этап pipeline после ingest: вместо «LLM-генерит-с-нуля», LLM-генерит-
+структурированный план эпизода из творческого брифа.
+
+**Что добавлено**:
+- `py/episode/spec_writer.py` (~360 строк): dataclasses `EpisodeSpec` +
+  `SceneSpec` со schema version 1, валидация (`validate_spec()`), thin wrapper
+  над OpenRouter Chat Completions API (`call_openrouter()` с response_format=
+  json_object), `extract_bible_excerpt()` (вытаскивает релевантные секции
+  bible — Visual style / Frozen prompt / Cast / Locations), `write_spec_from_brief()`
+  (read → build prompt → call LLM → parse → validate → write spec.json),
+  `load_spec()` (round-trip)
+- `scripts/spec_from_brief.py` (~60 строк): CLI с `--brief`, `--bible`,
+  `--output`, `--model`, `--dry-run`
+- `tests/test_spec_writer.py` (15 тестов): все валидационные кейсы, regex
+  для bible excerpt (включая parenthetical в heading), round-trip load/save,
+  invalid LLM JSON handling, validation failure handling
+
+**Архитектурные решения**:
+- LLM output строгий JSON через `response_format={"type": "json_object"}` —
+  проще парсить, меньше галлюцинаций с markdown
+- `brief_sha256` + `bible_sha256` в spec.json — для idempotency:
+  повторный запуск с теми же входными файлами = no-op
+- `extract_bible_excerpt()` regex-friendly к parentheticals в headings
+  ("Frozen video prompt suffix (H3.0 / H3 Max)")
+- Dry-run пропускает LLM call и валидацию (для testing схемы)
+- Provider whitelist в валидаторе убран (over-engineering) — проверяем
+  только тип (string), полный список моделей проверяется в client
+- Defensive parse: `RuntimeError` на malformed JSON от LLM, не silent fail
+
+**OpenSpec**: deferred (single-file change ~360 lines + tests).
+
+**Тесты**: 40/40 OK (25 предыдущих + 15 новых).
+`python -m unittest discover -s tests -p 'test_*.py'`
+
 **Open Items** (следующие change'ы):
-- F4: episode spec writer (LLM brief → spec.json)
 - F3: Coverr/Mixkit/Archive ingest (parallel to F2)
 - F5: indexer (BLIP-2 + CLIP через LM Studio)
-- F6: matcher + Concat exporter
-- F11: OpenSpec formal proposal для следующего большого change'а
+- F6: matcher + Concat exporter (depends on F5)
+- F11: OpenSpec formal proposal
+- F7: capcut-pipeline MCP для Hermes (uses spec_writer)
