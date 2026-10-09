@@ -16,7 +16,7 @@ audit/tasks, CHANGELOG.
   Archive.org. Pixabay и Pexels web заблокированы из UA (HTTP 403 verified
   via curl 2026-10-09T18:13Z), остаются как skip-if-blocked fallbacks
 - Local-first deployment (Oracle free tier исключён; VPS — при commercial scale)
-- Git локально (без remote пока)
+- Git локально + remote `git@github.com:VladTer06081963/capcut-studio.git` (public)
 - Concat MCP для auto-compose + CapCut/DaVinci на MBP для manual polish
 
 **Commits**:
@@ -24,24 +24,56 @@ audit/tasks, CHANGELOG.
   .gitignore, bible templates, library/README, py/ skeleton 7 submodules)
 - `b9a4486` — fix: drop Pixabay as primary stock source (UA blocked).
   Pixabay/Pexels помечены как skip-if-blocked, добавлены Coverr/Mixkit/Archive
+- `d476774` — docs: add summary/audit, summary/tasks, summary/PRD, CHANGELOG
 
-**OpenSpec**: `openspec/changes/initial-scaffold/` — **deferred**. Этот
-change описан прямо в audit/tasks. Формальная OpenSpec-итерация появится
-при первом функциональном коде (F1: `py/lib/config.py`).
+**OpenSpec**: `openspec/changes/initial-scaffold/` — deferred. Описан прямо
+в audit/tasks. Формальная OpenSpec-итерация появится при первом функциональном
+коде (F1).
 
 **Tests**: N/A (scaffolding без кода).
 
 **Audit + Tasks**: `summary/audit/001_initial-scaffold.md`,
 `summary/tasks/001_initial-scaffold.md`, `summary/PRD/PRD.md`.
 
-**Open Items** (следующие change'ы):
-- F1: `py/lib/{config,lifecycle}.py` (High)
-- F2: YouTube ingest end-to-end (High)
-- F3: Coverr + Archive ingest (Medium)
-- F4: Episode spec writer (High)
-- F5: Library indexer (Medium)
-- F6: Matcher + Concat exporter (Medium)
-- F7: capcut-pipeline MCP для Hermes (Medium)
-- F8: launchd nightly batch (Low)
-- F9: `bible/_TEMPLATE_scene.md` (Medium)
-- F10: Character consistency stress test (Low)
+---
+
+## 2026-10-09T18:35Z — Fixation 002: foundation (F1 — config + lifecycle)
+
+**Context**: первый функциональный код в проекте. Foundation для всех
+последующих модулей (ingest, episode, render, search, assemble, MCP).
+
+**Что добавлено**:
+- `py/lib/config.py` (~180 строк): грузит `.env` через `python-dotenv`,
+  экспортирует типизированные константы (LIBRARY_ROOT, DEFAULT_VIDEO_PROVIDER,
+  API keys, LM Studio URL, DAILY_AI_BUDGET_USD). Helpers: `has_minimax()`,
+  `has_openrouter()`, `has_youtube()`, `has_coverr()`, `is_test_env()`,
+  `ensure_dirs()`. Graceful fallback если `dotenv` не установлен.
+- `py/lib/lifecycle.py` (~250 строк): state machine для эпизода:
+  draft → approved → matched → rendered → published. Sentinel-файлы
+  (`.draft`, `.approved`) + detection через `matched.json` и
+  `rendered/final.mp4`. Atomic transitions: `approve()`, `revise()`,
+  `mark_matched()`, `mark_rendered()`, `publish()`. Idempotency:
+  `sha256_spec()`, `is_idempotent_render()`, `write_spec_sha()`.
+- `tests/test_config.py` (4 теста): defaults, helpers, paths, ensure_dirs
+- `tests/test_lifecycle.py` (14 тестов): все state transitions, идемпотентность,
+  sha256, publish log
+
+**Архитектурные решения**:
+- `State` как `str` Enum (`State.DRAFT == "draft"`) — JSON-friendly
+- Sentinel-файлы вместо in-memory state — соответствует AGENTS.md invariant
+  "lifecycle as files on disk"
+- Idempotency по sha256(spec.json) — повторный render без изменений = no-op
+- Тесты используют `tempfile.mkdtemp()` + `unittest.mock.patch` для
+  изоляции — никаких live-вызовов к API
+
+**OpenSpec**: deferred (этот change мелкий, ~430 строк + тесты). Формальная
+OpenSpec-итерация — для change'ов >1000 строк или с дельта-spec'ами.
+
+**Tests**: 18/18 OK (`python -m unittest discover -s tests -p 'test_*.py'`).
+
+**Audit + Tasks**: `summary/audit/002_foundation.md` (TODO), `summary/tasks/002_foundation.md` (TODO).
+
+**Open Items**:
+- F4: episode spec writer (uses config)
+- F2: YouTube ingest (uses config + lifecycle for cache invalidation)
+- F11: OpenSpec formal proposal для следующего большого change'а
