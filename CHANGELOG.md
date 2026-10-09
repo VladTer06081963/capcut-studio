@@ -141,9 +141,49 @@ chain (YouTube verified reachable from UA via curl 2026-10-09T18:13Z).
 **Тесты**: 40/40 OK (25 предыдущих + 15 новых).
 `python -m unittest discover -s tests -p 'test_*.py'`
 
-**Open Items** (следующие change'ы):
-- F3: Coverr/Mixkit/Archive ingest (parallel to F2)
-- F5: indexer (BLIP-2 + CLIP через LM Studio)
+## 2026-10-09T20:00Z — Fixation 005: F3 — secondary stock ingest (Coverr + Mixkit + Archive)
+
+**Context**: завершаем UA-friendly stock coverage. YouTube (F2) — primary,
+Coverr (F3-1) — secondary API, Mixkit (F3-2) — HTML scrape (no API), Archive.org
+(F3-3) — public-domain fallback. Все три verified reachable из UA.
+
+**Что добавлено**:
+- `py/ingest/coverr.py` (~220 строк): official API client (Bearer auth),
+  `VideoMeta`/`ProbeResult`/`IngestResult` dataclasses, `search_videos` +
+  `download_video` (streaming) + `probe_metadata` (ffprobe) + `write_metadata`
+  + high-level `ingest()`
+- `py/ingest/mixkit.py` (~280 строк): HTML scrape (`_find_video_cards` regex),
+  page-level MP4 resolution (`_resolve_download_url` via `<source>` or og:video),
+  polite delay (default 2.0s из config). HTML-parsing изолирован в одной
+  функции — если Mixkit обновит layout, чинится один фрагмент.
+- `py/ingest/archive.py` (~250 строк): advancedsearch API + Lucene-query
+  quoting для safety, identifier → MP4 derivative resolver (prefers H.264),
+  public-domain metadata
+- `scripts/ingest_coverr.py`, `scripts/ingest_mixkit.py`, `scripts/ingest_archive.py`
+  (3 CLI, ~30 строк каждый)
+- `tests/test_secondary_ingest.py` (12 тестов): coverr search/parse/write,
+  mixkit HTML parsing + duration parsing + polite delay + page URL resolution,
+  archive search + Lucene quote safety + h.264 preference + no-video-error
+
+**Архитектурные решения**:
+- Все три источника имеют одинаковый dataclass shape (`VideoMeta`/`ProbeResult`/
+  `IngestResult`) — облегчает будущий универсальный matcher
+- Per-video error handling в каждом `ingest()` — partial success,
+  не валит весь batch на одной сломанной видео
+- Lucene query в archive.py всегда quoted через `f'("{query}")'` — безопасно
+  от injection / syntax errors
+- `_find_video_cards()` regex покрывает `<article data-href="...">...<h3>title</h3>...
+  <img src=...><span class="duration">0:45</span></article>` — если Mixkit
+  переедет на другой тег, чинится одна функция
+- License URL parsing в archive.py: `rstrip("/").split("/")[-1]` —
+  trailing slash обработан (URL вида `https://creativecommons.org/publicdomain/`)
+
+**Тесты**: 52/52 OK (40 предыдущих + 12 новых).
+`python -m unittest discover -s tests -p 'test_*.py'`
+
+**Open Items**:
+- F5: indexer (BLIP-2 + CLIP через LM Studio) — нужен для F6 matcher
 - F6: matcher + Concat exporter (depends on F5)
 - F11: OpenSpec formal proposal
-- F7: capcut-pipeline MCP для Hermes (uses spec_writer)
+- F7: capcut-pipeline MCP для Hermes
+- F9: bible/_TEMPLATE_scene.md
