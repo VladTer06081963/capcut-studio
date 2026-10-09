@@ -1,14 +1,42 @@
 # PRD: CapCut Studio (актуальное состояние)
 
-**Версия:** 1.0 (initial)
+**Версия:** 1.1 (после end-of-day fixation, 2026-10-09 22:15)
 **Дата:** 2026-10-09
 **Владелец:** Vlad
 **Путь проекта:** `~/Projects/capcut-studio/`
 
-> **Это описание нового проекта в его текущем виде** (scaffold готов, MVP
-> foundation в работе). Проект — sister к `~/Projects/comic-studio/`. Зеркалит
-> его lifecycle discipline (lifecycle as files, bible, approval gate,
-> summary/audit/tasks, CHANGELOG), но адаптирован к видео-домену.
+> **Это описание нового проекта в его текущем виде** (scaffold + foundation
+> + 6 functional модулей + 1 template готовы; end-to-end pipeline работает на
+> mock-данных). Проект — sister к `~/Projects/comic-studio/`. Зеркалит его
+> lifecycle discipline (lifecycle as files, bible, approval gate, summary/
+> audit/tasks, CHANGELOG), адаптирован к видео-домену.
+
+---
+
+## Status (обновлено 2026-10-09 22:15)
+
+**Готово (7 fixations, 79/79 tests OK):**
+- ✅ F1 foundation (`py/lib/config.py` + `py/lib/lifecycle.py`)
+- ✅ F2 YouTube stock ingest (`py/ingest/youtube.py`)
+- ✅ F3 Coverr + Mixkit + Archive (UA-friendly stock coverage)
+- ✅ F4 episode spec writer (`py/episode/spec_writer.py`, LLM через OpenRouter)
+- ✅ F5 library indexer (`py/index/embedder.py`, BLIP-2 + bge-large через LM Studio)
+- ✅ F6 matcher + Concat timeline exporter (`py/search/` + `py/assemble/`)
+- ✅ F9 bible scene template (`bible/_TEMPLATE_scene.md`)
+
+**End-to-end pipeline работает на mock-данных:**
+```
+brief.md → spec.json (F4) → matched.json (F6 via F5) → rendered/draft.json (F6)
+```
+
+**Real smoke test:** отложен до завтра. Перед этим нужны реальные
+bible/show-*.md + character-show-*.md + scene-*.md заполненные.
+
+**Pending:**
+- F7 capcut-pipeline MCP для Hermes (отложен)
+- F8 launchd nightly cron (отложен)
+- F11 OpenSpec formal proposal (отложен)
+- F10 Character consistency stress test (отложен)
 
 ---
 

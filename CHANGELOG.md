@@ -302,3 +302,70 @@ bible для сцен, чтобы зафиксировать что **не ме�
 **Следующая рекомендация (см. обсуждение выше)**: остановиться здесь,
 завтра начать с реального smoke-теста пайплайна (brief.md + bible + library
 ingest) перед тем как строить автоматизацию или MCP.
+
+---
+
+## 2026-10-09T22:15Z — Session end: retroactive fixation 002-008
+
+**Context**: end-of-day formal fixation для всех change'ов, сделанных после
+scaffold (001). До этого каждое изменение логировалось в CHANGELOG, но
+отсутствовали proper `summary/audit/<NNN>.md` + `summary/tasks/<NNN>.md`
+для fixations 002-008. Это закрывает тот gap.
+
+**Что добавлено** (retroactive):
+- `summary/audit/002_foundation.md` + `summary/tasks/002_foundation.md`
+- `summary/audit/003_youtube_ingest.md` + `summary/tasks/003_youtube_ingest.md`
+- `summary/audit/004_spec_writer.md` + `summary/tasks/004_spec_writer.md`
+- `summary/audit/005_secondary_stock.md` + `summary/tasks/005_secondary_stock.md`
+- `summary/audit/006_library_indexer.md` + `summary/tasks/006_library_indexer.md`
+- `summary/audit/007_matcher_assembler.md` + `summary/tasks/007_matcher_assembler.md`
+- `summary/audit/008_scene_template.md` + `summary/tasks/008_scene_template.md`
+
+(7 audit + 7 tasks файлов, mirror comic-studio discipline)
+
+## Итог дня — session complete
+
+**Commits today:** 8
+- `be437d3` feat: initial scaffold
+- `b9a4486` fix: drop Pixabay as primary stock source (UA blocked)
+- `d476774` docs: add summary/audit, summary/tasks, summary/PRD, CHANGELOG
+- `63e687d` feat(lib): config + lifecycle foundation
+- `96b96ff` feat(ingest): YouTube stock source end-to-end
+- `63e41b3` feat(episode): spec writer (LLM brief → spec.json)
+- `016e582` feat(ingest): Coverr + Mixkit + Archive
+- `70edba7` feat(index): library indexer (BLIP-2 + bge-large via LM Studio)
+- `2d8847e` feat(search+assemble): matcher + Concat timeline exporter
+- `fe872f2` feat(bible): scene template + bible README section
+
+**Files added:** ~30 (5 python modules + 6 CLI scripts + 6 test files + 8 audit/tasks + 1 scene template + bible README + PRD + CHANGELOG + .env.example + .gitignore)
+
+**Lines of code:** ~2500 (Python + Markdown)
+**Tests:** 79/79 OK, fully mocked (no live API calls)
+
+**End-to-end pipeline работает на mock-данных:**
+```
+brief.md → spec.json (F4 spec_writer)
+              ↓
+         matched.json (F6 matcher via F5 indexer)
+              ↓
+         rendered/draft.json (F6 Concat exporter)
+```
+
+**Real smoke test (TODO завтра):**
+- заполнить bible/show-*.md + bible/character-*.md + bible/scene-*.md
+- скачать 20-50 клипов через scripts/ingest_*.py
+- запустить scripts/index_library.py (с LM Studio)
+- прогнать scripts/spec_from_brief.py → assemble_episode.py
+- посмотреть draft.json глазами
+
+**Next-fixation candidates (отложены):**
+- F7: capcut-pipeline MCP для Hermes
+- F8: launchd nightly cron + cron/nightly.sh
+- F11: OpenSpec formal proposal для будущих change'ов
+- F10: Character consistency stress test
+
+**Open Items / Follow-ups (отдельные change'ы):**
+- Голосовая озвучка (voice cloning pipeline)
+- Subtitles (Whisper через Concat)
+- Web API (когда MCP недостаточно)
+- VPS deploy (когда commercial revenue оправдает)
