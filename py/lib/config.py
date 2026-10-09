@@ -85,6 +85,22 @@ PEXELS_API_KEY: str | None = os.environ.get("PEXELS_API_KEY")
 LM_STUDIO_URL: str = os.environ.get("LM_STUDIO_URL", "http://127.0.0.1:1234")
 LM_STUDIO_EMBED_MODEL: str = os.environ.get("LM_STUDIO_EMBED_MODEL", "bge-large-en-v1.5")
 LM_STUDIO_CAPTION_MODEL: str = os.environ.get("LM_STUDIO_CAPTION_MODEL", "blip-2")
+LM_STUDIO_API_TOKEN: str | None = os.environ.get("LM_STUDIO_API_TOKEN")
+
+
+def has_lm_studio_text() -> bool:
+    """LM Studio is reachable AND has at least one model loaded (best-effort)."""
+    try:
+        import requests
+
+        headers = {"Authorization": f"Bearer {LM_STUDIO_API_TOKEN}"} if LM_STUDIO_API_TOKEN else {}
+        resp = requests.get(f"{LM_STUDIO_URL}/v1/models", headers=headers, timeout=3)
+        if resp.status_code != 200:
+            return False
+        data = resp.json()
+        return bool(data.get("data"))
+    except Exception:
+        return False
 
 CONCAT_MCP_URL: str = os.environ.get("CONCAT_MCP_URL", "http://127.0.0.1:9847")
 

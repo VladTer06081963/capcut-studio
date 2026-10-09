@@ -368,11 +368,46 @@ smoke test был тривиальным. Без реальных bible pipeline
   serials/stalker-reznik/ep-01-pilot/spec.json` работает без дополнительной настройки
 - Следующий шаг: реальный smoke test с LLM (требует OPENROUTER_API_KEY)
 
-**Open Items** (статус после 009):
+## 2026-10-09T22:30Z — Fixation 010: switch default text provider OpenRouter → LM Studio local
+
+**Context**: пользователь перешёл на LM Studio local с qwen2.5-coder-7b-instruct-mlx
+(4.30 GB MLX квантизация, загружен в память). OpenRouter требует пополнения
+баланса, LM Studio бесплатный. Решение — LM Studio как default, OpenRouter
+как fallback.
+
+**Что добавлено**:
+- `py/episode/spec_writer.py`: `call_openrouter` → `call_text_llm` с routing
+  - OpenRouter-style model names ("provider/model") → OpenRouter
+  - Otherwise → LM Studio first; fallback на OpenRouter если LM Studio down
+  - `_call_lm_studio_chat()` и `_call_openrouter_only()` — отдельные функции
+- `py/episode/spec_writer.py`: `DEFAULT_MODEL = "qwen2.5-coder-7b-instruct-mlx"`
+  (то что у пользователя загружено)
+- `py/lib/config.py`: `LM_STUDIO_API_TOKEN` env var + `has_lm_studio_text()`
+  liveness check (проверяет /v1/models, опциональный bearer auth)
+- `.env.example`: добавлена строка `LM_STUDIO_API_TOKEN=` с комментом где найти
+
+**Архитектурные решения**:
+- Selection logic: model name содержит "/" → OpenRouter (per convention),
+  иначе LM Studio. Это убирает необходимость явного provider switch для
+  большинства cases.
+- Fallback chain: LM Studio → (если down) OpenRouter → (если тоже down) error
+  с понятным сообщением. Никогда silent fail.
+- `has_lm_studio_text()` — реальная проверка через `/v1/models`, не просто
+  flag в env. Это лучше, чем предполагать доступность.
+- Bearer token опциональный — если auth выключен в LM Studio, работает без
+  токена (как было до auth-включения).
+
+**Тесты**: 79/79 OK (без изменений — все тесты mock'нутые, не задевают
+реальные API вызовы)
+
+**Open Items** (статус после 010):
 - ✅ F1-F6, F9: всё функциональное + templates (79/79 tests)
-- ✅ F9.5: real bible filled (этот change)
-- ⏳ Real smoke test: требует OPENROUTER_API_KEY + LM Studio
-- ⏳ F7, F8, F11, F10: deferred
+- ✅ F9.5: real bible filled
+- ✅ F10: LM Studio как default для text gen
+- ⏳ BLOCKED: нужен `LM_STUDIO_API_TOKEN` от пользователя (или отключить
+  auth в LM Studio Settings → Developer)
+- ⏳ Real smoke test: после получения токена
+- ⏳ F7, F8, F11: deferred
 
 ## Итог дня — session complete
 

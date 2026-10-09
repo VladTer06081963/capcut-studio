@@ -30,8 +30,10 @@ import requests
 
 from py.lib.config import (
     DEFAULT_TEXT_PROVIDER,
+    LM_STUDIO_URL,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
+    has_lm_studio_text,
     has_openrouter,
 )
 from py.lib.lifecycle import sha256_file
@@ -39,8 +41,10 @@ from py.lib.lifecycle import sha256_file
 
 SCHEMA_VERSION = 1
 
-# Default OpenRouter model for spec writing. Override per-call with `model=`.
-DEFAULT_MODEL = "qwen/qwen3-max"
+# Default model for spec writing. Override per-call with `model=`.
+# Default is LM Studio local (qwen2.5-coder is what user typically loads).
+# Falls back to OpenRouter if LM Studio unreachable.
+DEFAULT_MODEL = "qwen2.5-coder-7b-instruct-mlx"
 
 # Hard cap on input tokens to keep cost predictable.
 MAX_BRIEF_CHARS = 8_000
@@ -198,15 +202,83 @@ def call_openrouter(
     max_tokens: int = 4096,
     timeout: int = 60,
 ) -> dict[str, Any]:
-    """Send chat completion to OpenRouter. Returns parsed response dict.
+    """Send chat completion. Tries LM Studio first, then OpenRouter.
+
+    LM Studio: OpenAI-compatible /v1/chat/completions, requires bearer token
+    (LM_STUDIO_API_TOKEN env). Default for local Qwen models.
+
+    OpenRouter: same shape, requires OPENROUTER_API_KEY.
+
+    Selection logic:
+    - If `model` is an OpenRouter-style name ("provider/model"), use OpenRouter
+    - Otherwise, use LM Studio first; fall back to OpenRouter if LM Studio down
+
+    Returns parsed response dict.
 
     Raises:
-        RuntimeError: if OPENROUTER_API_KEY not set.
+        RuntimeError: if neither LM Studio nor OpenRouter is configured.
         requests.HTTPError: on non-2xx.
     """
+    is_openrouter_model = "/" in model
+
+    if is_openrouter_model or not has_lm_studio_text():
+        return _call_openrouter_only(messages, model=model, temperature=temperature,
+                                      max_tokens=max_tokens, timeout=timeout)
+    # Default: LM Studio local
+    try:
+        return _call_lm_studio_chat(messages, model=model, temperature=temperature,
+                                    max_tokens=max_tokens, timeout=timeout)
+    except (requests.RequestException, RuntimeError) as e:
+        if has_openrouter():
+            return _call_openrouter_only(messages, model=model, temperature=temperature,
+                                          max_tokens=max_tokens, timeout=timeout)
+        raise RuntimeError(f"LM Studio call failed and no OpenRouter fallback: {e}") from e
+
+
+def _call_lm_studio_chat(
+    messages: list[dict[str, str]],
+    *,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: int,
+) -> dict[str, Any]:
+    """Call LM Studio's OpenAI-compatible /v1/chat/completions."""
+    from py.lib.config import LM_STUDIO_API_TOKEN
+
+    url = f"{LM_STUDIO_URL}/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if LM_STUDIO_API_TOKEN:
+        headers["Authorization"] = f"Bearer {LM_STUDIO_API_TOKEN}"
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "response_format": {"type": "json_object"},
+    }
+
+    resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _call_openrouter_only(
+    messages: list[dict[str, str]],
+    *,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: int,
+) -> dict[str, Any]:
+    """Call OpenRouter (legacy fallback)."""
     if not has_openrouter():
         raise RuntimeError(
-            "OPENROUTER_API_KEY not set in .env — see .env.example"
+            "Neither LM Studio nor OpenRouter configured. "
+            "Set LM_STUDIO_API_TOKEN or OPENROUTER_API_KEY in .env"
         )
 
     url = f"{OPENROUTER_BASE_URL}/chat/completions"
