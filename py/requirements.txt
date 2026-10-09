@@ -1,0 +1,15 @@
+# capcut-studio runtime dependencies
+
+# Config
+python-dotenv>=1.0      # .env loader (graceful fallback if missing)
+
+# YouTube ingest
+yt-dlp>=2024.1          # YouTube downloader
+requests>=2.31          # YouTube Data API v3 HTTP
+
+# Indexer (F5)
+# sentence-transformers>=2.2  # CLIP embeddings via LM Studio
+# pillow>=10.0                 # image preprocessing for BLIP-2
+
+# Search (F6)
+# numpy>=1.26                  # vector math for embeddings

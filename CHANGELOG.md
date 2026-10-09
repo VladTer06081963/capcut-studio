@@ -73,7 +73,40 @@ OpenSpec-итерация — для change'ов >1000 строк или с де
 
 **Audit + Tasks**: `summary/audit/002_foundation.md` (TODO), `summary/tasks/002_foundation.md` (TODO).
 
-**Open Items**:
-- F4: episode spec writer (uses config)
-- F2: YouTube ingest (uses config + lifecycle for cache invalidation)
+## 2026-10-09T19:00Z — Fixation 003: F2 — YouTube stock ingest
+
+**Context**: первый реальный stock ingest. Data API v3 search + yt-dlp download
++ ffprobe probe + metadata.json writer. Primary stock source per AGENTS.md fallback
+chain (YouTube verified reachable from UA via curl 2026-10-09T18:13Z).
+
+**Что добавлено**:
+- `py/ingest/youtube.py` (~290 строк): `search_videos()` (Data API v3, два
+  запроса — search + videos для enrich), `download_video()` (yt-dlp,
+  720p MP4, 500MB hard cap), `probe_metadata()` (ffprobe → duration/resolution/fps),
+  `write_metadata()` (sibling `<mp4>.metadata.json` с sha256), высокоуровневый
+  `ingest()` с per-video error handling (errors не валят весь batch)
+- `scripts/ingest_youtube.py` (~80 строк): CLI с `--query`, `--count`,
+  `--license` (any/creativeCommon), `--output-dir`, `--duration`
+- `tests/test_youtube_ingest.py` (7 тестов): search response parsing, probe
+  metadata, write metadata, download_video, per-video error handling в `ingest()`
+- `py/requirements.txt`: yt-dlp + python-dotenv + requests (для F2)
+
+**Архитектурные решения**:
+- Убрал `isodate` зависимость — свой `_parse_iso_duration_seconds()` regex
+  (PT2M30S → 150) занимает 5 строк и не требует pip install
+- `LICENSE_CC` vs `LICENSE_ANY` — CC для re-use-safe материала, any для
+  стандартного YouTube license (B-roll где re-use не критично)
+- `ingest()` возвращает `IngestResult{videos, files, errors}` — partial success:
+  3 из 5 видео скачались, остальные с errors → вызывающий решает что делать
+- `probe_metadata()` отдельная функция (не внутри download_video) — позволяет
+  пере-зондировать при reindex без re-download
+
+**Тесты**: 25/25 OK (18 предыдущих + 7 новых).
+`python -m unittest discover -s tests -p 'test_*.py'`
+
+**Open Items** (следующие change'ы):
+- F4: episode spec writer (LLM brief → spec.json)
+- F3: Coverr/Mixkit/Archive ingest (parallel to F2)
+- F5: indexer (BLIP-2 + CLIP через LM Studio)
+- F6: matcher + Concat exporter
 - F11: OpenSpec formal proposal для следующего большого change'а
