@@ -269,9 +269,36 @@ spec.json → [F6 match_episode] → matched.json
 spec.json + matched.json → [F6 assemble_timeline] → rendered/draft.json
 ```
 
-**Open Items**:
-- F7: capcut-pipeline MCP для Hermes (uses matcher + assembler)
-- F9: bible/_TEMPLATE_scene.md
-- F8: cron/nightly.sh + launchd .plist (calls indexer + ingest)
-- F11: OpenSpec formal proposal
-- F10: Character consistency stress test
+## 2026-10-09T21:15Z — Fixation 008: F9 — bible/_TEMPLATE_scene.md (frozen location template)
+
+**Context**: scene — это переиспользуемая локация, появляющаяся в нескольких
+эпизодах (например, "костёр у моста" — в 5 разных эпизодах). Нужен шаблон
+bible для сцен, чтобы зафиксировать что **не меняется** между эпизодами.
+
+**Что добавлено**:
+- `bible/_TEMPLATE_scene.md` (~150 строк): setting/visual/props/signature/
+  sound/frozen prompt suffix/seed/continuity log/camera moves/tags +
+  чеклист из 11 пунктов
+- `bible/README.md` обновлён: добавлена секция "Scene bible (F9)" с описанием
+  паттерна и примерами (riverbank, square-night, denis-bunker)
+
+**Архитектурные решения**:
+- Scene bible фокусируется на **continuity log**: какие эпизоды использовали
+  сцену, что в ней должно меняться, что нет — это drift detector
+- "Signature elements" — элементы которые MUST быть (или отсутствовать) для
+  визуальной continuity. Например, всегда догоревший костёр, всегда ржавый мост.
+- Camera moves отделены от visual style — Concat transition в F6, scene-specific
+  motion здесь
+- Seed pattern такой же как в character bible: фиксированный int, bump ±1 при drift
+
+**Open Items** (статус):
+- ✅ F1-F6: end-to-end pipeline работает (79/79 tests)
+- ✅ F9: scene template
+- ⏳ F7: capcut-pipeline MCP — отложен, не горит
+- ⏳ F8: launchd nightly cron — отложен
+- ⏳ F11: OpenSpec formal proposal
+- ⏳ F10: Character consistency stress test
+
+**Следующая рекомендация (см. обсуждение выше)**: остановиться здесь,
+завтра начать с реального smoke-теста пайплайна (brief.md + bible + library
+ingest) перед тем как строить автоматизацию или MCP.

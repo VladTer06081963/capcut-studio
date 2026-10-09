@@ -7,7 +7,27 @@ Frozen templates — one per show, character, and scene. The bible is the
 
 - `_TEMPLATE_show.md` — copy to `<show-slug>.md` and fill
 - `_TEMPLATE_character.md` — copy to `character-<slug>.md` and fill
-- (TBD) `_TEMPLATE_scene.md` — frozen scene bible (lighting, props, composition)
+- `_TEMPLATE_scene.md` — copy to `scene-<slug>.md` and fill (frozen location/
+  lighting/composition across episodes)
+
+## Scene bible (F9)
+
+`bible/scene-<slug>.md` defines a **reusable location** — the same physical
+place across many episodes. Examples:
+
+- `bible/scene-pripyat-riverbank.md` — used in 5 episodes (campfire scenes)
+- `bible/scene-pripyat-square-night.md` — used in 3 episodes
+- `bible/scene-denis-bunker.md` — interior, used in 2 episodes
+
+Scene bibles freeze **what doesn't change between episodes**:
+- Composition, lighting, atmosphere, color temperature
+- Props and signature elements (always present or always absent)
+- Camera moves (default motion + transitions)
+
+The **continuity log** in each scene bible tracks which episodes used it
+and what was different in each — this is your drift detector. If two
+episodes show the same scene with conflicting prop placement, the log
+flags it.
 
 ## Why "frozen"
 
