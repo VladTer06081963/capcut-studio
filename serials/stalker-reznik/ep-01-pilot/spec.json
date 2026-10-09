@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "ep-01-pilot",
+  "show": "stalker-reznik",
+  "title": "(dry-run)",
+  "summary": "(dry-run)",
+  "scenes": [],
+  "provider": {
+    "text": "qwen/qwen3-max"
+  },
+  "model": "qwen/qwen3-max",
+  "created_at": "2026-10-09T19:19:42.443667+00:00",
+  "brief_sha256": "a2681f37252a6e798cefe09daaa4607d314b7b5d71308f30f52441c8e4673270",
+  "bible_sha256": "48eb0fb69a060385e74dd1c5a808b33cc4f1dbe1041c501f6bb3d26cf79ae581"
+}
