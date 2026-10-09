@@ -217,9 +217,61 @@ Coverr (F3-1) — secondary API, Mixkit (F3-2) — HTML scrape (no API), Archive
 **Тесты**: 65/65 OK (52 предыдущих + 13 новых).
 `python -m unittest discover -s tests -p 'test_*.py'`
 
+## 2026-10-09T20:45Z — Fixation 007: F6 — matcher + Concat timeline exporter
+
+**Context**: ключевой change. После F5 (indexer) нужны две вещи:
+1. `match_episode(spec)` — для каждой scene находим лучший клип в library
+2. `assemble_timeline(spec, matched)` — собираем Concat-совместимый timeline
+
+**Что добавлено**:
+- `py/search/matcher.py` (~230 строк):
+  - Dataclasses `SceneMatch`, `MatchedEpisode`
+  - `SOURCE_PRIORITY`: ai → stock → any fallback chain
+  - `match_episode()` — для каждой scene embed query → search → priority
+    resolution → best match; скипает audio-сцены (voiceover без visual query)
+  - `write_matched` / `load_matched` round-trip
+  - Low-similarity threshold (0.1) — фильтрует шумные матчи
+- `py/assemble/concat_exporter.py` (~270 строк):
+  - Dataclasses `ConcatClip`, `ConcatTrack`, `ConcatProject`, `ConcatTimeline`
+  - `assemble_timeline()` — spec + matched → Concat-совместимый JSON
+  - Треки: video-main, audio-main, overlay-character (пустые дропаются)
+  - Transitions: fade-in на первом, fade-out на последнем, cut между
+  - Audio voiceover placeholder (TTS заполнит `src` позже)
+  - `write_concat_timeline` / `load_concat_timeline`
+- `scripts/assemble_episode.py` (~50 строк): end-to-end CLI (spec → matched → draft.json)
+- `tests/test_matcher_assembler.py` (14 тестов): source priority, audio skip,
+  video match, no-match warnings, low-score skip, persistence round-trip,
+  video tracks, audio track voiceover, unmatched warnings, Concat round-trip
+
+**Архитектурные решения**:
+- `_resolve_source_filter()` — single function для fallback chain (легко
+  расширить если появятся новые источники)
+- `_pick_transition()` — отдельная функция, тестируемая:
+  - single scene → fade-in + fade-out
+  - first → fade-in + cut
+  - last → cut + fade-out
+  - middle → cut + cut
+- Unmatched scenes не валят pipeline — записываются в `unmatched_scenes`
+  для последующей AI-генерации или skip'а
+- Concat timeline schema versioned (`SCHEMA_VERSION = 1`)
+
+**Тесты**: 79/79 OK (65 предыдущих + 14 новых).
+`python -m unittest discover -s tests -p 'test_*.py'`
+
+**End-to-end pipeline теперь рабочий**:
+```
+brief.md → [F4 spec_from_brief] → spec.json
+                                       ↓
+library/ai + library/stock → [F5 index_library] → index.sqlite
+                                       ↓
+spec.json → [F6 match_episode] → matched.json
+                                       ↓
+spec.json + matched.json → [F6 assemble_timeline] → rendered/draft.json
+```
+
 **Open Items**:
-- F6: matcher + Concat exporter (depends on F5 — search_by_text готов)
-- F11: OpenSpec formal proposal
-- F7: capcut-pipeline MCP для Hermes (uses matcher)
+- F7: capcut-pipeline MCP для Hermes (uses matcher + assembler)
 - F9: bible/_TEMPLATE_scene.md
-- F8: cron/nightly.sh + launchd .plist (calls indexer)
+- F8: cron/nightly.sh + launchd .plist (calls indexer + ingest)
+- F11: OpenSpec formal proposal
+- F10: Character consistency stress test
