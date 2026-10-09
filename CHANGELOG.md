@@ -181,9 +181,45 @@ Coverr (F3-1) — secondary API, Mixkit (F3-2) — HTML scrape (no API), Archive
 **Тесты**: 52/52 OK (40 предыдущих + 12 новых).
 `python -m unittest discover -s tests -p 'test_*.py'`
 
+## 2026-10-09T20:15Z — Fixation 006: F5 — library indexer (BLIP-2 + bge-large via LM Studio)
+
+**Context**: matcher (F6) ищет клипы по `spec.json`-запросу. Нужна индексация
+библиотеки: каждый клип получает caption + embedding для similarity search.
+
+**Что добавлено**:
+- `py/index/embedder.py` (~400 строк):
+  - SQLite schema (`clips` table с caption + embedding BLOB + tags + probe data)
+  - `pack_embedding`/`unpack_embedding` (float32 <-> bytes)
+  - `caption_image()` через LM Studio `/v1/chat/completions` (multimodal, base64 image)
+  - `embed_text()` через LM Studio `/v1/embeddings` (bge-large-en-v1.5 default)
+  - `lm_studio_alive()` liveness check (graceful fallback если LM Studio down)
+  - `extract_frame()` через ffmpeg (mid-video PNG)
+  - `index_clip()` — single clip: probe → extract frame → caption → embed → INSERT
+  - `index_library()` — walk library/, skip .tmp/, idempotent на sha256
+  - `get_clip_by_id()` / `search_by_text()` (cosine similarity brute-force,
+    готов для F6 matcher)
+- `scripts/index_library.py` (~50 строк): CLI с `--no-caption`/`--no-embed`
+- `tests/test_embedder.py` (13 тестов): pack/unpack roundtrip, init_db,
+  LM Studio client (caption/embed/liveness), index_clip (insert, idempotent,
+  skip-zero-duration), search_by_text (top match, source filter)
+
+**Архитектурные решения**:
+- Текст-эмбеддинг (caption + tags + title), не визуальный — проще, достаточно
+  для semantic search на 10k+ клипах. Визуальный эмбеддинг можно добавить
+  позже (CLIP-via-LM-Studio уже есть в .env).
+- `lm_studio_alive()` graceful fallback: если LM Studio down, indexer всё
+  равно работает (без caption/embedding — `NULL` поля).
+- Idempotent на sha256: повторный index не перезаписывает row если sha256
+  совпадает. Только changed файлы re-caption + re-embed.
+- Cosine similarity brute-force (не FAISS). Для <10k клипов — fine.
+  Заменяется на sqlite-vss/FAISS если библиотека разрастётся.
+
+**Тесты**: 65/65 OK (52 предыдущих + 13 новых).
+`python -m unittest discover -s tests -p 'test_*.py'`
+
 **Open Items**:
-- F5: indexer (BLIP-2 + CLIP через LM Studio) — нужен для F6 matcher
-- F6: matcher + Concat exporter (depends on F5)
+- F6: matcher + Concat exporter (depends on F5 — search_by_text готов)
 - F11: OpenSpec formal proposal
-- F7: capcut-pipeline MCP для Hermes
+- F7: capcut-pipeline MCP для Hermes (uses matcher)
 - F9: bible/_TEMPLATE_scene.md
+- F8: cron/nightly.sh + launchd .plist (calls indexer)
