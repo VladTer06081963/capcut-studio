@@ -22,9 +22,12 @@ library/
 │  └─ other/                    ← misc AI clips (intro cards, transitions)
 │
 ├─ stock/                       ← downloaded from external sources
-│  ├─ pixabay/<id>.mp4  + metadata.json
-│  ├─ pexels/<id>.mp4   + metadata.json
-│  ├─ youtube/<id>.mp4  + metadata.json
+│  ├─ youtube/<id>.mp4  + metadata.json     ← primary (UA-friendly)
+│  ├─ coverr/<id>.mp4   + metadata.json     ← secondary (UA-friendly)
+│  ├─ mixkit/<id>.mp4   + metadata.json     ← tertiary (UA, scrape-based)
+│  ├─ archive/<id>.mp4   + metadata.json    ← fallback (public domain)
+│  ├─ pixabay/<id>.mp4  + metadata.json     ← blocked from UA
+│  ├─ pexels/<id>.mp4   + metadata.json     ← blocked from UA
 │  └─ recorded/<date>-<slug>.mp4  + metadata.json
 │
 ├─ index.sqlite                 ← embeddings + tags (BLIP-2 + CLIP)
@@ -88,13 +91,20 @@ CREATE INDEX idx_clips_tags ON clips(tags);
 4. Write `<action>.meta.json`
 5. Re-index (BLIP-2 caption + CLIP embedding) → update `index.sqlite`
 
-**Stock path** (scripts/ingest_pixabay.py):
-1. Query Pixabay API for `query`
-2. For each result: download MP4 to `library/stock/pixabay/<id>.mp4`
-3. Probe with ffmpeg: duration, resolution, fps
-4. Compute sha256
-5. Write `metadata.json` with `attribution` from API response
-6. Index
+**Stock path** (one script per source):
+1. `scripts/ingest_youtube.py` — YouTube Data API v3 search → download via yt-dlp
+2. `scripts/ingest_coverr.py` — Coverr API → direct MP4 download
+3. `scripts/ingest_mixkit.py` — Mixkit HTML scrape (no public API)
+4. `scripts/ingest_archive.py` — Archive.org advancedsearch API → derivative MP4
+5. `scripts/ingest_pixabay.py` — Pixabay API (skipped if blocked)
+6. `scripts/ingest_pexels.py` — Pexels API (skipped if blocked)
+
+For each result:
+1. Download MP4 to `library/stock/<source>/<id>.mp4`
+2. Probe with ffmpeg: duration, resolution, fps
+3. Compute sha256
+4. Write `metadata.json` with `attribution` from source
+5. Index
 
 ## How a clip gets matched to an episode
 

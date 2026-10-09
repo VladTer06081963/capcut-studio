@@ -191,9 +191,13 @@ clips(id, path, sha256, source, model, caption, embedding BLOB, tags JSON)
 - **Default text:** `qwen3-max` via OpenRouter subscription.
 - **Default image:** `qwen-image` via OpenRouter (used for character
   reference sheets that get fed to H3.0 as init images).
-- **Fallback B-roll:** stock (Pixabay). When matcher cannot find an
-  adequate AI clip, it falls back to stock and tags the result
-  `source: stock` in `matched.json`.
+- **Fallback B-roll:** stock — **UA-friendly order**:
+  YouTube → Coverr → Mixkit → Archive.org. Pixabay/Pexels kept as
+  skip-if-blocked fallbacks (their web returns 403 from UA; API may
+  still answer with a valid key but we don't depend on them).
+  When matcher cannot find an adequate AI clip, it falls back to stock
+  and tags `source: stock` (with sub-source: youtube/coverr/...) in
+  `matched.json`.
 
 **Auto-fallback chain:**
 1. AI clip from library (exact character/scene match)
@@ -248,7 +252,7 @@ over Thunderbolt.
 │   LM Studio              (BLIP-2 / CLIP indexer)       │
 │   MiniMax H3.0           (cloud, via Plus Plan)        │
 │   OpenRouter / Qwen      (cloud subscription)          │
-│   Pixabay / Pexels / YT  (stock APIs)                  │
+│   Pixabay / Pexels / YT / Coverr / Mixkit / Archive.org (stock APIs; UA-friendly primary: YouTube + Coverr + Mixkit)
 │                                                        │
 └────────────────────────────────────────────────────────┘
           │ Thunderbolt 40 Gb/s (read/write)
