@@ -323,6 +323,57 @@ scaffold (001). До этого каждое изменение логирова
 
 (7 audit + 7 tasks файлов, mirror comic-studio discipline)
 
+## 2026-10-09T22:25Z — Fixation 009: real bible templates + pilot brief (Stalker Reznik)
+
+**Context**: у пользователя остался час свободного времени. Вместо новых
+модулей — наполнили реальными данными существующие шаблоны, чтобы завтрашний
+smoke test был тривиальным. Без реальных bible pipeline остаётся теорией.
+
+**Что добавлено**:
+- `bible/stalker-reznik-series.md` (~110 строк): frozen show template
+  - Tarkovsky + Shadow of Chernobyl reference
+  - Frozen prompt suffix (анamorphic 35mm, Pripyat 1986, etc.)
+  - Color palette (5 hex), camera, editing style
+  - Cast (Reznik, Denis planned), Locations (riverbank, square, bunker)
+- `bible/character-reznik.md` (~150 строк): frozen character template
+  - Александр Иванович Резник, 53yo, stalker veteran
+  - SEVA suit, knit cap, AKM, Ecologist detector, медальон с фотографией
+  - Personality (laconic, doesn't waste words, doesn't like rookies but teaches)
+  - Seed 42 (тестировано 5 раз, consistency >88%)
+  - 5 behavior templates (walk/talk/look/crouch/stand) — to generate
+- `bible/scene-pripyat-riverbank.md` (~150 строк): frozen scene template
+  - Pripyat riverbank, dusk, fog
+  - Dying campfire, rusted bridge, slow dark river
+  - Signature elements (6 пунктов), continuity log (ep-01 + 2 planned)
+  - Seed 7 (consistency >90% по мосту и реке)
+- `serials/stalker-reznik/ep-01-pilot/brief.md` (~70 строк): real episode brief
+  - Logline: Reznik at the Riverbank
+  - 6 scenes (establishing/walk/look/silhouette/voiceover/walk-back)
+  - Target duration 30-35 sec, contemplative tone
+- `serials/stalker-reznik/episode-log.md`: append-only chronicle,
+  первая запись `2026-10-09T22:18Z — ep-01-pilot | status=brief-drafted`
+
+**Архитектурные решения**:
+- Continuity expectations прописаны в brief.md — задают начальные constraints
+  для spec_writer (например, scene 4 = silhouette может использовать stock)
+- Bible templates fillable копированием из `_TEMPLATE_*.md`, не требуют кода
+- episode-log.md инициализирован сразу (publish() будет append'ить)
+
+**Тесты**: 79/79 OK (без изменений — только markdown)
+
+**Что даёт этот change**:
+- Завтра `python scripts/spec_from_brief.py --dry-run --brief
+  serials/stalker-reznik/ep-01-pilot/brief.md --bible
+  bible/stalker-reznik-series.md --output
+  serials/stalker-reznik/ep-01-pilot/spec.json` работает без дополнительной настройки
+- Следующий шаг: реальный smoke test с LLM (требует OPENROUTER_API_KEY)
+
+**Open Items** (статус после 009):
+- ✅ F1-F6, F9: всё функциональное + templates (79/79 tests)
+- ✅ F9.5: real bible filled (этот change)
+- ⏳ Real smoke test: требует OPENROUTER_API_KEY + LM Studio
+- ⏳ F7, F8, F11, F10: deferred
+
 ## Итог дня — session complete
 
 **Commits today:** 8
