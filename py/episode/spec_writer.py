@@ -93,9 +93,20 @@ class EpisodeSpec:
 # Validation
 # ---------------------------------------------------------------------------
 
-VALID_SCENE_TYPES = {"establishing", "dialogue", "action", "transition", "voiceover"}
+VALID_SCENE_TYPES = {
+    # Canonical base types
+    "establishing", "dialogue", "action", "transition", "voiceover",
+    # Common cinematic compounds (from briefs in the wild)
+    "dialogue-reaction", "establishing-wide", "establishing-reverse",
+    "silhouette", "insert", "montage",
+}
 VALID_TRACKS = {"video", "overlay", "audio"}
 VALID_SOURCES = {"ai", "stock", "any"}
+
+
+def _normalize_scene_type(t: str) -> str:
+    """Slash/underscore-tolerant normalisation: 'dialogue/reaction' -> 'dialogue-reaction'."""
+    return (t or "").strip().lower().replace("/", "-").replace("_", "-")
 
 
 def validate_spec(spec: EpisodeSpec) -> list[str]:
@@ -120,7 +131,8 @@ def validate_spec(spec: EpisodeSpec) -> list[str]:
     for i, s in enumerate(spec.scenes):
         if s.n != i + 1:
             issues.append(f"scene[{i}].n should be {i + 1}, got {s.n}")
-        if s.type not in VALID_SCENE_TYPES:
+        normalized_type = _normalize_scene_type(s.type)
+        if normalized_type not in VALID_SCENE_TYPES:
             issues.append(f"scene[{i}].type invalid: {s.type!r}")
         if s.track not in VALID_TRACKS:
             issues.append(f"scene[{i}].track invalid: {s.track!r}")
@@ -243,7 +255,15 @@ def _call_lm_studio_chat(
     max_tokens: int,
     timeout: int,
 ) -> dict[str, Any]:
-    """Call LM Studio's OpenAI-compatible /v1/chat/completions."""
+    """Call LM Studio's OpenAI-compatible /v1/chat/completions.
+
+    LM Studio (llama.cpp server) does NOT support
+    `response_format={"type": "json_object"}` — only `json_schema` or `text`.
+    Strategy: try with json_object first (matches OpenRouter behaviour, useful
+    if running on a server that supports it); on 400 Bad Request for that
+    specific field, retry without `response_format` and rely on prompt
+    engineering to get JSON back.
+    """
     from py.lib.config import LM_STUDIO_API_TOKEN
 
     url = f"{LM_STUDIO_URL}/v1/chat/completions"
@@ -262,6 +282,10 @@ def _call_lm_studio_chat(
     }
 
     resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if resp.status_code == 400 and "response_format" in resp.text:
+        # LM Studio (llama.cpp) doesn't accept json_object — retry without it
+        payload.pop("response_format", None)
+        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
     resp.raise_for_status()
     return resp.json()
 
@@ -300,11 +324,22 @@ def _call_openrouter_only(
 
 
 def _extract_json_content(response: dict[str, Any]) -> str:
-    """Pull the message content from OpenRouter response. Defensive parsing."""
+    """Pull the message content from OpenRouter response. Defensive parsing.
+
+    Local models (e.g. qwen2.5-coder via LM Studio) often wrap JSON in
+    markdown ```...``` fences even when the prompt says "no fences". Strip the
+    fence block before returning, so json.loads doesn't fail on char 0.
+    """
     try:
-        return response["choices"][0]["message"]["content"]
+        content = response["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as e:
         raise RuntimeError(f"unexpected OpenRouter response shape: {e}")
+
+    # Strip ```json ... ``` or ``` ... ``` fence if present
+    fence_match = re.search(r"```(?:json)?\s*\n(.*?)\n```", content, re.DOTALL)
+    if fence_match:
+        return fence_match.group(1).strip()
+    return content.strip()
 
 
 # ---------------------------------------------------------------------------

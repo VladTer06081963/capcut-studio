@@ -27,6 +27,8 @@ library/.tmp/
 
 # Output (regeneratable)
 serial/*/rendered/
+serials/*/rendered/
+serials/*/matched.json
 .tmp/
 
 # Logs

@@ -455,3 +455,41 @@ brief.md → spec.json (F4 spec_writer)
 - Subtitles (Whisper через Concat)
 - Web API (когда MCP недостаточно)
 - VPS deploy (когда commercial revenue оправдает)
+
+## 2026-10-10T12:30Z — Fixation 011: smoke test compatibility fixes
+
+**Контекст:** end-to-end smoke test (brief → spec → matched → draft) на
+реальных API выявил 7 несовместимостей, которые mock-тесты не покрывали.
+Все исправления — локальные, backward-compatible.
+
+**Что сделано:**
+
+| Файл | Что |
+|---|---|
+| `py/episode/spec_writer.py` | LM Studio `response_format=json_object` retry (400 fallback); markdown ` ```json ` fence strip в `_extract_json_content`; `VALID_SCENE_TYPES` whitelist расширен (`dialogue-reaction`, `silhouette`, `establishing-wide/reverse`, `insert`, `montage`); `_normalize_scene_type` slash/underscore → дефис |
+| `py/index/embedder.py` | Bearer token в `lm_studio_alive()`, `embed_text()`, `caption_image()` |
+| `py/ingest/archive.py` | `sort[]="downloads desc"` (пробел, не плюс — Archive.org API literal '+' interpretation) |
+| `py/ingest/youtube.py` | Format selector: `best[ext=mp4][acodec!=none][height<=720]/(bestvideo+bestaudio)/best[ext=mp4]/best`; `js_runtimes={"node": {}}` |
+| `scripts/ingest_*.py` (×4) | Добавлен `sys.path.insert(0, ...)` shim — раньше был только в 3 из 6 |
+| `.gitignore` | Добавлены `serials/*/rendered/` + `serials/*/matched.json` (was typo `serial/`) |
+| `.env` | `LM_STUDIO_URL=http://127.0.0.1:11434` (Ollama); `LM_STUDIO_EMBED_MODEL=nomic-embed-text` (bge-large не загружен в LM Studio); `YOUTUBE_API_KEY=<39-char AIzaSy>` (создан через `gcloud services api-keys create`) |
+
+**End-to-end pipeline (после F-11):**
+```
+brief.md → spec.json (LM Studio, 6 scenes) → matched.json (5/6 matched)
+            → draft.json (31s, 2 tracks) → Concat.app GUI ✓
+```
+
+**Тесты:** 77/79 OK (2 pre-existing fail в `test_config.py` — `patch.dict(clear=True)`
+не отменяет `load_dotenv()` при reload; F-12 candidate, не регрессия).
+
+**Физические артефакты (НЕ в git):**
+- `serials/stalker-reznik/ep-01-pilot/matched.json` (regeneratable)
+- `serials/stalker-reznik/ep-01-pilot/rendered/draft.json` (regeneratable)
+- `library/stock/` (assets, .gitignore)
+
+**Open Items:**
+- ⏳ F12: fix 2 unit-test isolation issues
+- ⏳ BLIP-2 captioning (model not loaded in LM Studio)
+- ⏳ Coverr API key (заявка не вышла в UI — работаем без)
+- ⏳ Concat MCP (F7 deferred)

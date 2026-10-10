@@ -160,13 +160,23 @@ def search_videos(
 
 # Sensible defaults: 720p MP4, no playlist, single file.
 DEFAULT_YDL_OPTS: dict[str, Any] = {
-    "format": "best[height<=720][ext=mp4]/best[ext=mp4]/best",
+    # Prefer progressive MP4 (video+audio in one file, no merge needed).
+    # Fall back to adaptive: bestvideo + bestaudio merged into mp4.
+    # Last resort: any best format (will be transcoded to mp4 if needed).
+    # Note: progressive MP4s on YouTube have acodec != None; video-only
+    # adaptive streams have acodec == None, so the [acodec!=none] filter
+    # correctly excludes the 144p/360p video-only formats yt-dlp lists.
+    "format": "best[ext=mp4][acodec!=none][height<=720]/(bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a])/best[ext=mp4]/best",
     "outtmpl": "%(id)s.%(ext)s",
     "noplaylist": True,
     "quiet": True,
     "no_warnings": True,
     "merge_output_format": "mp4",
     "max_filesize": 500 * 1024 * 1024,  # 500 MB hard cap
+    # yt-dlp needs a JS runtime for full format listing on YouTube;
+    # without it, only storyboards + 2 progressive formats are returned,
+    # so `best[ext=mp4]` falls through and download fails.
+    "js_runtimes": {"node": {}},
 }
 
 

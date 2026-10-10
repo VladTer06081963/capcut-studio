@@ -1,15 +1,115 @@
 {
   "schema": 1,
   "id": "ep-01-pilot",
-  "show": "stalker-reznik",
-  "title": "(dry-run)",
-  "summary": "(dry-run)",
-  "scenes": [],
+  "show": "stalker-reznik-series",
+  "title": "Reznik at the Riverbank",
+  "summary": "A veteran stalker returns to Pripyat, approaches a dying campfire at the riverbank by the rusted bridge, sees a silhouette on the far shore, and decides not to engage.",
+  "scenes": [
+    {
+      "n": 1,
+      "type": "establishing",
+      "query": "Wide shot of Pripyat exclusion zone riverbank at dusk, no character. Slow dolly in. Fog. Dying campfire.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 6,
+      "character_ref": null,
+      "scene_ref": "pripyat-riverbank:establishing",
+      "caption": null,
+      "voiceover": null,
+      "tags": [
+        "establishing",
+        "dusk",
+        "campfire"
+      ]
+    },
+    {
+      "n": 2,
+      "type": "action",
+      "query": "Reznik walks into frame from right, crosses broken parking lot, reaches the riverbank by the bridge. Sets down his Ecologist detector on its tripod. LED blinks red.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 8,
+      "character_ref": "reznik:hero.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": [
+        "action",
+        "reznik",
+        "Ecologist detector"
+      ]
+    },
+    {
+      "n": 3,
+      "type": "dialogue/reaction",
+      "query": "Reznik looks across the river. Close shot of his weathered face, tired grey-green eyes, scanning the far shore. A figure is faintly visible across the water.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "reznik:hero.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": [
+        "dialogue",
+        "reaction",
+        "reznik"
+      ]
+    },
+    {
+      "n": 4,
+      "type": "establishing",
+      "query": "Wide reverse: silhouette on the far shore, indistinct, watching. Very long hold.",
+      "preferred_source": "stock",
+      "track": "video",
+      "duration_sec": 4,
+      "character_ref": null,
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": [
+        "establishing",
+        "silhouette"
+      ]
+    },
+    {
+      "n": 5,
+      "type": "voiceover",
+      "query": null,
+      "preferred_source": "ai",
+      "track": "audio",
+      "duration_sec": 3,
+      "character_ref": null,
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": "Reznik's voice, low and measured: 'Some things aren't worth the ammo.'",
+      "tags": [
+        "voiceover",
+        "decision"
+      ]
+    },
+    {
+      "n": 6,
+      "type": "establishing",
+      "query": "Wide shot from behind: Reznik shoulders his rifle and walks back across the broken parking lot, fading into dusk.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "reznik:hero.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": [
+        "establishing",
+        "reznik"
+      ]
+    }
+  ],
   "provider": {
-    "text": "qwen2.5-coder-7b-instruct-mlx"
+    "text": "qwen/qwen3-max"
   },
   "model": "qwen2.5-coder-7b-instruct-mlx",
-  "created_at": "2026-10-09T19:26:39.004089+00:00",
+  "created_at": "2026-10-10T08:41:56.973958+00:00",
   "brief_sha256": "a2681f37252a6e798cefe09daaa4607d314b7b5d71308f30f52441c8e4673270",
   "bible_sha256": "48eb0fb69a060385e74dd1c5a808b33cc4f1dbe1041c501f6bb3d26cf79ae581"
 }

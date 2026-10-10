@@ -39,6 +39,7 @@ import requests
 from py.lib.config import (
     LIBRARY_INDEX,
     LIBRARY_ROOT,
+    LM_STUDIO_API_TOKEN,
     LM_STUDIO_CAPTION_MODEL,
     LM_STUDIO_EMBED_MODEL,
     LM_STUDIO_URL,
@@ -119,7 +120,10 @@ def caption_image(image_path: Path, *, timeout: int = 60) -> str:
         "max_tokens": 100,
     }
     url = f"{LM_STUDIO_URL}/v1/chat/completions"
-    resp = requests.post(url, json=payload, timeout=timeout)
+    headers = {"Content-Type": "application/json"}
+    if LM_STUDIO_API_TOKEN:
+        headers["Authorization"] = f"Bearer {LM_STUDIO_API_TOKEN}"
+    resp = requests.post(url, json=payload, headers=headers, timeout=timeout)
     resp.raise_for_status()
     data = resp.json()
     return data["choices"][0]["message"]["content"].strip()
@@ -132,16 +136,26 @@ def embed_text(text: str, *, timeout: int = 30) -> list[float]:
         "input": text,
     }
     url = f"{LM_STUDIO_URL}/v1/embeddings"
-    resp = requests.post(url, json=payload, timeout=timeout)
+    headers = {"Content-Type": "application/json"}
+    if LM_STUDIO_API_TOKEN:
+        headers["Authorization"] = f"Bearer {LM_STUDIO_API_TOKEN}"
+    resp = requests.post(url, json=payload, headers=headers, timeout=timeout)
     resp.raise_for_status()
     data = resp.json()
     return data["data"][0]["embedding"]
 
 
 def lm_studio_alive() -> bool:
-    """Quick liveness check: GET /v1/models. False if LM Studio is down."""
+    """Quick liveness check: GET /v1/models. False if LM Studio is down.
+
+    Uses bearer auth from LM_STUDIO_API_TOKEN if set (LM Studio may require
+    auth even for /v1/models endpoint).
+    """
     try:
-        resp = requests.get(f"{LM_STUDIO_URL}/v1/models", timeout=3)
+        headers = {}
+        if LM_STUDIO_API_TOKEN:
+            headers["Authorization"] = f"Bearer {LM_STUDIO_API_TOKEN}"
+        resp = requests.get(f"{LM_STUDIO_URL}/v1/models", headers=headers, timeout=3)
         return resp.status_code == 200
     except Exception:
         return False

@@ -92,7 +92,7 @@ def search_videos(
         "fl[]": ["identifier", "title", "year", "mediatype", "licenseurl"],
         "rows": min(max_results, 50),
         "output": "json",
-        "sort[]": ["downloads+desc"],
+        "sort[]": ["downloads desc"],  # space-separated (not '+'); Archive.org treats literal '+' in sort value as char
     }
 
     resp = requests.get(ARCHIVE_SEARCH_URL, params=params, headers=DEFAULT_HEADERS, timeout=20)
