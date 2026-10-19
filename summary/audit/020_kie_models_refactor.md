@@ -1,9 +1,9 @@
 # 020 — kie.ai integration hardening (kie-models skill refactor)
 
-**Status:** Done (2026-10-13)
+**Status:** ✅ Done (2026-10-13, доставлено в коммит 68c335d)
 **Change:** `py/render/` → fully aligned with official `kie-models` skill
 
-## Context
+## 1. Контекст (Context)
 
 Earlier `py/render/kie_client.py` was a hand-rolled subset that I had
 imagined the kie.ai API to look like. After installing the official
@@ -14,7 +14,7 @@ model and must be discovered from the schema, uploads live on a different
 domain, and there are explicit rate-limit pools. This audit records the
 diff and the resulting architectural change.
 
-## What changed
+## 2. Что сделано (What changed)
 
 ### `py/render/kie_client.py` (full rewrite, 476 lines)
 
@@ -90,7 +90,7 @@ sync-rejection, rate limiters, two-domain upload, result URL handling,
 spend/approval. PRD §13 updated to reflect 30/30 unit tests passing.
 PRD §15 status block updated. PRD version bumped 1.2 → 1.3.
 
-## Verification
+## 3. Статус (Verification)
 
 - 30/30 unit tests in `tests/test_kie_client.py` pass (`python3 -m pytest
   tests/test_kie_client.py -v`)
@@ -101,7 +101,7 @@ PRD §15 status block updated. PRD version bumped 1.2 → 1.3.
 - `kling/v2-1-master-text-to-video` and `veo-3-1` confirmed as real Kie
   model ids per official skill documentation
 
-## What's NOT verified
+## 4. Что НЕ проверено (What's NOT verified)
 
 - Live HTTP call to `api.kie.ai` (requires API key; user declined to
   share via chat — see session history)
@@ -109,7 +109,7 @@ PRD §15 status block updated. PRD version bumped 1.2 → 1.3.
 - Schema variants beyond the two tested shapes (`input_image` and
   `image_url`)
 
-## Follow-ups
+## 5. Follow-ups
 
 - Live test once `KIE_API_KEY` is inserted via `scripts/setup_keys.sh`
 - Add integration test that mocks full HTTP exchange with realistic

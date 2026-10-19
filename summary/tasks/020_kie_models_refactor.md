@@ -1,6 +1,27 @@
-# 020 — kie.ai integration hardening (kie-models skill refactor)
+# Задачи: kie.ai integration hardening (kie-models skill refactor)
 
-## Goal
+## Статус: ✅ Done (2026-10-13, доставлено в коммит 68c335d)
+
+| ID | Задача | Статус |
+|---|---|---|
+| 1 | Прочитать `~/.hermes/skills/kie-models/SKILL.md`, извлечь реальный API contract | ✅ Done |
+| 2 | Переписать `py/render/kie_client.py`: 7 typed errors, body.code detection, schema-driven submit, sync-rejection, 3 result shapes, per-pool rate limiters, upload домен, live discovery | ✅ Done |
+| 3 | Поправить docstring в `py/render/provider_router.py` (правильный пример модели, backend-vs-model правило) | ✅ Done |
+| 4 | Поправить docstring + default `model_id` в `py/render/base.py` (veo-3-fast → veo-3-1) | ✅ Done |
+| 5 | Переписать `tests/test_kie_client.py` — 30/30 unit-тестов зелёные | ✅ Done |
+| 6 | Скрипт `scripts/test_kie.py` — live smoke harness (KIE_SMOKE=0 для discovery-only) | ✅ Done |
+| 7 | Скрипт `scripts/setup_keys.sh` — интерактивная вставка ключа через /dev/tty | ✅ Done |
+| 8 | Обновить `summary/PRD/PRD.md` §6 (с 48 до 184 строк) + F-020 row в §16 + version 1.1 → 1.3 | ✅ Done |
+| 9 | Обновить `CHANGELOG.md` — запись о fixation 020 | ✅ Done |
+| 10 | Написать `summary/audit/020_kie_models_refactor.md` (этот файл) | ✅ Done |
+| 11 | Live smoke test с реальным KIE_API_KEY | ⏸ Deferred (нужна вставка ключа через `scripts/setup_keys.sh`; ключ нельзя вставлять через чат) |
+
+## Основание
+
+`summary/audit/020_kie_models_refactor.md` — полный аудит, файлы,
+тесты и мотивация изменений.
+
+## Подробный разбор (Goal / Tasks / Acceptance)
 
 Bring `py/render/` in line with the actual Kie.ai API as documented by
 the official `kie-models` skill installed via `npx skills add
