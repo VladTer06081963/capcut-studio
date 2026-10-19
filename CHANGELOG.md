@@ -2,6 +2,49 @@
 
 ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
 
+## 2026-10-19T17:15Z — Fixation 021: health-check followups (diagnostic)
+
+**Context**: пользователь попросил «проверь как работает capcut-studio».
+Health-check нашёл 3 проблемы, ни одна не блокирует пайплайн прямо сейчас,
+но каждая заслуживает отдельной fixation. Эта fixation — только
+документация, без правок кода.
+
+**Найдено**:
+- **5.1 Pytest shadowing.** Локальный `py/` (исходники pipeline) перекрывает
+  настоящий пакет `py` (нужен pytest 7.x для `LEGACY_PATH = py.path.local`).
+  Workaround: запускать pytest из `/tmp` с `--rootdir`. Реальный фикс
+  (rename `py/` → `capcut/`) — отдельная fixation 022.
+- **5.2 Нет `final.mp4` writer.** Pipeline останавливается на
+  `rendered/preview.mp4`. AGENTS.md: «no final-render CLI confirmed».
+  Требует OpenSpec proposal + отдельная fixation 023.
+- **5.3 Cyber-heist ep-01 approved без final.** `preview.mp4` (108 MB)
+  собран, но `final.mp4` шаг не сделан. Блокирован 5.2.
+
+**Решения зафиксированы**:
+- Зафиксировано окружение для прохождения тестов: `.venv` с
+  `pytest<8` + `py==1.11.0` + `python-dotenv` + `requests` + `yt_dlp`
+  (полный список — `py/requirements.txt`).
+- 129/129 Python-тестов проходят (запускать из `/tmp`, см. workaround).
+- 4/4 Node smoke-теста проходят (`node mcp-server/test/concat_paths.test.js`).
+- MCP-сервер регистрирует 2 tool'а: `assemble_episode`, `open_in_concat`.
+- `.env` (chmod 600, 21 ключей) — все обязательные ключи на месте.
+- Library: 12 клипов в `library/index.sqlite`, 71 MB AI + 4.7 GB stock.
+
+**Созданные файлы**:
+- `summary/audit/021_health_check_followups.md` — полный аудит (7 секций,
+  root cause + A/B/C варианты фикса для 5.1)
+- `summary/tasks/021_health_check_followups.md` — sister tasks-файл
+
+**Открытые follow-ups**:
+- 022 (candidate): `py/` → `capcut/` rename — трогает публичный import path,
+  нужен OpenSpec proposal
+- 023 (candidate): `render_final` tool в `mcp-server` — нужен OpenSpec
+  proposal
+- 5.3 — блокирован 5.2
+
+**No code changes** в этой fixation. Только документация и `.venv`
+(в `.gitignore`).
+
 ## 2026-10-09T18:20Z — Fixation 001: initial scaffold + UA stock migration
 
 **Context**: новый проект `~/Projects/capcut-studio/` (sister-project к
