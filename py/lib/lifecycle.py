@@ -15,13 +15,15 @@ Transitions:
   matched  → rendered   (render() writes rendered/final.mp4)
   rendered → published  (publish() appends episode-log entry)
 
-Re-render policy:
-  rerender(force=False) — refuses to overwrite rendered/final.mp4 unless
-  force=True. Use remix for non-destructive iteration (separate episode dir).
+Final-render policy:
+  rendered/final.mp4 is immutable from creation by project policy. Use remix
+  for non-destructive iteration (separate episode dir). This module provides
+  lifecycle and hash helpers; it does not implement a final-render writer or
+  enforce overwrite protection.
 
 Idempotency:
-  Every state transition checks current state. Calling approve() twice is a
-  no-op. Calling render() twice without changes is a no-op (sha256 match).
+  State helpers inspect files on disk; spec-hash helpers support render
+  idempotency checks. An automated final-render flow is not implemented here.
 
 Mirror of comic-studio's lifecycle pattern. The hard rule: lifecycle is
 **files on disk**, not in-memory flags.

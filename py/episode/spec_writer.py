@@ -30,9 +30,12 @@ import requests
 
 from py.lib.config import (
     DEFAULT_TEXT_PROVIDER,
+    GEMINI_API_KEY,
+    GEMINI_BASE_URL,
     LM_STUDIO_URL,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
+    has_gemini,
     has_lm_studio_text,
     has_openrouter,
 )
@@ -222,15 +225,20 @@ def call_openrouter(
     OpenRouter: same shape, requires OPENROUTER_API_KEY.
 
     Selection logic:
+    - If `model` is "gemini-1.5..." and GEMINI_API_KEY is present, use Google Studio
     - If `model` is an OpenRouter-style name ("provider/model"), use OpenRouter
     - Otherwise, use LM Studio first; fall back to OpenRouter if LM Studio down
 
     Returns parsed response dict.
 
     Raises:
-        RuntimeError: if neither LM Studio nor OpenRouter is configured.
+        RuntimeError: if no provider is configured.
         requests.HTTPError: on non-2xx.
     """
+    if model.startswith("gemini-") and has_gemini():
+        return _call_google_studio_only(messages, model=model, temperature=temperature,
+                                        max_tokens=max_tokens, timeout=timeout)
+
     is_openrouter_model = "/" in model
 
     if is_openrouter_model or not has_lm_studio_text():
@@ -323,6 +331,62 @@ def _call_openrouter_only(
     return resp.json()
 
 
+def _call_google_studio_only(
+    messages: list[dict[str, str]],
+    *,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: int,
+) -> dict[str, Any]:
+    """Call Google AI Studio directly (native endpoint)."""
+    if not has_gemini():
+        raise RuntimeError("GEMINI_API_KEY not configured in .env")
+
+    # model string might be 'gemini-1.5-pro'
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    # Convert OpenAI messages to Gemini contents
+    contents = []
+    system_instruction = None
+    for msg in messages:
+        if msg["role"] == "system":
+            system_instruction = {"parts": [{"text": msg["content"]}]}
+        else:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+            "responseMimeType": "application/json"
+        }
+    }
+    if system_instruction:
+        payload["systemInstruction"] = system_instruction
+
+    resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    resp.raise_for_status()
+    data = resp.json()
+
+    # Adapt Gemini response to OpenAI format for the parser
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        text = "{}"
+
+    return {
+        "choices": [
+            {"message": {"content": text}}
+        ]
+    }
+
+
 def _extract_json_content(response: dict[str, Any]) -> str:
     """Pull the message content from OpenRouter response. Defensive parsing.
 
@@ -331,7 +395,14 @@ def _extract_json_content(response: dict[str, Any]) -> str:
     fence block before returning, so json.loads doesn't fail on char 0.
     """
     try:
-        content = response["choices"][0]["message"]["content"]
+        if "choices" in response:
+            content = response["choices"][0]["message"]["content"]
+        elif "message" in response and "content" in response["message"]:
+            content = response["message"]["content"]
+        elif "error" in response:
+            raise RuntimeError(f"API returned error: {response['error']}")
+        else:
+            raise RuntimeError(f"unexpected response shape. response: {response}")
     except (KeyError, IndexError, TypeError) as e:
         raise RuntimeError(f"unexpected OpenRouter response shape: {e}")
 

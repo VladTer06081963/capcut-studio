@@ -42,3 +42,8 @@ data/logs/
 
 # Comic-studio shared
 .comic-studio-cache/
+# Rendered / downloaded video (large binaries)
+serials/**/rendered/*.mp4
+summary/*.mp4
+*.mp4
+!library/**/.gitkeep

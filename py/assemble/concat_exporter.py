@@ -120,7 +120,7 @@ def _resolve_path(library_root: Path, relative_path: str | None) -> str | None:
     """Resolve relative library path to absolute. Returns None if missing."""
     if not relative_path:
         return None
-    abs_path = library_root / relative_path
+    abs_path = (library_root / relative_path).resolve()
     return str(abs_path) if abs_path.exists() else None
 
 

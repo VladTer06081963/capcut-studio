@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "capcut-pipeline": {
+      "command": "node",
+      "args": [
+        "/Users/vladteresena/Projects/capcut-studio/mcp-server/index.js"
+      ],
+      "env": {}
+    }
+  }
+}

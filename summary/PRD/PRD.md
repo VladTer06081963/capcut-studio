@@ -1,7 +1,8 @@
 # PRD: CapCut Studio (актуальное состояние)
 
-**Версия:** 1.1 (после end-of-day fixation, 2026-10-09 22:15)
-**Дата:** 2026-10-09
+**Версия:** 1.3 (kie-models refactor)
+**Дата обновления:** 2026-10-13
+**Исторический baseline:** 2026-10-09 22:15
 **Владелец:** Vlad
 **Путь проекта:** `~/Projects/capcut-studio/`
 
@@ -389,48 +390,184 @@ published        episode-log.md запись добавлена
 
 ## 6. AI Provider Routing
 
-### Default providers
+### Architecture (2026-10-13: kie-models refactor)
 
-| Задача | Провайдер | Endpoint |
-|---|---|---|
-| Video gen | `minimax-h3-max` | MiniMax Plus API |
-| Text | `qwen3-max` | OpenRouter |
-| Image reference | `qwen-image` | OpenRouter |
+Video generation is delegated to the Kie.ai unified API, accessed through
+`py/render/kie_client.py`. Kie exposes 200+ video / image / audio / LLM
+models behind a single REST surface (credit-based; ~30% off direct pricing).
+`ProviderRouter` keeps a single client per backend; it does not maintain a
+hardcoded model catalog because the upstream set changes frequently.
+
+```
+┌──────────────┐    ProviderSpec    ┌──────────────┐
+│ spec.json    │ ─────────────────► │ ProviderRouter│
+│ scene        │  parse → backend   │              │
+│              │  + model_id        │  KieClient   │
+└──────────────┘                    │   ▲          │
+                                    │   │ upload   │
+                                    │   │ base64/  │
+                                    │   │ stream/  │
+                                    │   │ url      │
+                                    │   ▼          │
+                                    │  api.kie.ai  │
+                                    │ + redpandaai │
+                                    └──────────────┘
+```
+
+### Module surface (`py/render/`)
+
+| File | Role |
+|---|---|
+| `base.py` | `GenerationRequest` / `GenerationResult` / `VideoProvider` protocol |
+| `kie_client.py` | Typed Kie.ai client (errors, state machine, schema-driven submit, uploads) |
+| `provider_router.py` | `ProviderRouter` / `ProviderSpec` / `parse_scene_provider` |
+| `__init__.py` | Re-exports public surface |
+
+`KNOWN_MODELS` in `base.py` is a backward-compat alias map; the source of
+truth is `KieClient.list_models(task_type=...)` (live discovery). New
+callers should not rely on `KNOWN_MODELS`.
+
+### Canonical model id format
+
+Kie model ids are **"provider/name"** slashes, e.g. `kling/v2-1-master-text-to-video`.
+Slashes are **not** URL-encoded. Some models are single-segment: `veo-3-1`,
+`sora-2`, `gpt-image-2-text-to-image`. Use the `kie-models` skill
+(`npx skills add https://kie.ai`) to discover the live catalog; **do not**
+rely on a hardcoded list in this repo.
+
+`ProviderSpec.parse()` treats the first slash-segment as a backend
+selector **only** when it matches a known name (`kie`, `minimax`,
+`openrouter`); otherwise the whole string is a model id and the backend
+defaults to `kie`. So both forms work as scene providers:
+
+```
+"kling/v2-1-master-text-to-video"   → backend="kie", model="kling/v2-1-master-text-to-video"
+"kie/veo-3-1"                       → backend="kie", model="veo-3-1"
+"minimax/h3-max"                    → backend="minimax" (NotImplementedError today)
+```
 
 ### Override hierarchy (per-scene)
 
 ```
-1. CLI flag (--video-provider, --text-provider)
+1. spec.json["scenes"][i]["provider"]     # e.g. "kling/v2-1-master-text-to-video"
    ↓
-2. spec.json["scenes"][i]["provider"]
+2. spec.json["scenes"][i]["model_id"]     # bare id, auto-prefixed with "kie/"
    ↓
-3. spec.json["provider"] (ep-level)
+3. caller-supplied default (caller passes to router.generate())
    ↓
-4. bible/<show>.md → GENRE_DEFAULT table (TBD)
+4. env DEFAULT_VIDEO_PROVIDER             # e.g. "kling/v2-1-master-text-to-video"
    ↓
-5. env DEFAULT_VIDEO_PROVIDER / DEFAULT_TEXT_PROVIDER
-   ↓
-6. hardcoded "minimax-h3-max" (last resort)
+5. code fallback: "kie/veo-3-1"
 ```
 
-### Auto-fallback chain (per-call)
+CLI, episode-level provider, and bible `GENRE_DEFAULT` overrides are
+design ideas from the earlier PRD, not confirmed in the current router/
+callers. Text routing is separate and implemented in
+`py/episode/spec_writer.py`; it does not go through `ProviderRouter`.
+
+### Fallback behavior
+
+`ProviderRouter.generate()` uses only the explicitly passed `fallback`
+argument. The config variable `DEFAULT_VIDEO_FALLBACK` is **not** loaded
+automatically. The target workflow forbids silent fallback to a different
+model or provider: on failure, the router stops and surfaces the error so
+the user can pick the next model. The `fallback` list in the call is an
+explicit pre-approved chain, not a silent default.
+
+### Error contract (Kie.ai, per official docs)
+
+Kie returns HTTP 200 even on error — the actual status is in the JSON
+`body.code` field. The client maps these to typed exceptions:
+
+| body.code | Exception | Meaning |
+|---|---|---|
+| 200 | — | success |
+| 401 | `KieAuthError` | invalid API key |
+| 402 | `KieCreditError` | insufficient credit |
+| 404 | `KieNotFoundError` | model id or resource not found |
+| 422 | `KieValidationError` | request body / parameter validation |
+| 429 | `KieRateLimitError` | per-key rate limit hit |
+| 433 | `KieSubKeyLimitError` | per-sub-key limit |
+| 455 | `KieUnavailableError` | upstream service unavailable |
+| other | `KieError` | generic wrapper |
+
+All exceptions inherit from `KieError` so callers can catch broadly
+(`except KieError`) and narrow when needed.
+
+### State machine (poll target)
+
+Kie task state field `state`:
 
 ```
-1. primary provider call
-   ↓ (raises LMRuntimeError / MMError / etc.)
-2. fallback provider call (lazy import)
-   ↓ (raises)
-3. last resort: hardcoded "minimax"
-   ↓ (raises)
-4. explicit fail with context (no silent fallbacks)
+"waiting" / "queuing" / "generating"   → not done, keep polling
+"success"                               → terminal: resultUrls[] in `response`
+"fail"                                  → terminal: failCode + failMsg
 ```
 
-В `matched.json` пишется `provider_used`, `provider_fallback: bool` — для аудита.
+The client's `_data_to_result()` maps these to `GenerationResult(success=…)`
+with `error="pending"` for non-terminal states and `error=failMsg` for
+`fail`. Latency / cost come from the `costTime` (ms) and `creditsConsumed`
+fields in the success payload.
 
-### Daily budget cap
+### Schema-driven input mapping
 
-`DAILY_AI_BUDGET_USD` в `.env` (default 10). `cron/nightly.sh` aborts above.
-Per-call cost tracking в `library/.tmp/cost_log.json`.
+Each Kie model has its own OpenAPI schema (`GET /api/v1/models/<model>/schema`).
+The reference-image field name varies across models (`image_url`,
+`input_image`, `first_frame_image`, `video_url`, …). `KieClient.submit()`
+fetches the model schema and picks the right field by inspecting the
+`Input` schema's properties; this is required because the wrong field
+name produces a 422. Local files in `reference_image` are rejected
+unless the caller uploads them first via `KieClient.upload_file()`.
+
+### Sync vs async model rejection
+
+Models whose schema does **not** expose `/api/v1/jobs/createTask` (e.g.
+`claude/sonnet`, `gpt-4o`) are synchronous chat models. The async
+`submit()` path rejects them with `KieError("…is synchronous (not
+/api/v1/jobs/createTask) …")`. Synchronous chat calls must use the
+`kie-chat-agents` skill instead.
+
+### Result URL handling
+
+Result URLs from Kie expire (typically ~24h for cloud storage). The
+client downloads the file into `KIE_DOWNLOAD_DIR` and returns the local
+`Path` in `GenerationResult.video_path`. The original `remote_url` is
+preserved on the result for debugging. Files in `library/ai/` are
+immutable after creation, so re-downloading the same job id always
+overwrites the same path.
+
+### Rate limiters (shared pools, per official docs)
+
+| Pool | Endpoints | Limit |
+|---|---|---|
+| discovery | `/models`, `/models/<id>/schema`, `/models/<id>/price`, `/models/<id>/success-rate` | 1 req/sec total |
+| create | `/jobs/createTask` | 20 req / 10 sec |
+| poll | `/jobs/recordInfo` | 10 req/sec per `taskId` |
+
+`KieClient` enforces these with a sliding-window per-pool rate limiter
+(`_RateLimiter`) to prevent 429s from bursts.
+
+### Uploads (two domains)
+
+| Purpose | Domain | Endpoints |
+|---|---|---|
+| REST API (jobs, balance, discovery) | `api.kie.ai` | `KIE_BASE_URL=https://api.kie.ai` |
+| Uploads (file-base64, file-stream, file-url) | `kieai.redpandaai.co` | `KIE_UPLOAD_BASE=https://kieai.redpandaai.co` |
+
+Uploads are **not** covered by the same rate limiter as the REST API and
+return separately; `KieClient.upload_file()` is the entry point.
+
+### Spend / approval
+
+Historically in config there is `DAILY_AI_BUDGET_USD`, but in the current
+tree there is no `cron/nightly.sh`; this parameter is not a technical
+barrier and must not be relied on as a mandatory cap. The agreed rule:
+before generation, the user states/approves the provider and exact model
+for the current task. Approval does not transfer to another model/
+provider or to a future task. Pricing, subscription limits, price
+snapshots, and budget caps are not required. An audit artifact with
+provider/model and task scope (no price fields) is planned but not yet
+implemented.
 
 ---
 
@@ -701,6 +838,7 @@ _(отдельные change'ы — см. `summary/tasks/001_*.md` → "След�
 | F13 | Subtitle pipeline (Whisper локально) | Future |
 | F14 | Web API для approve/revise (без MCP) | Future |
 | F15 | VPS deploy script (когда commercial пойдёт) | Future |
+| F-020 | kie.ai integration hardening (refactor под официальный `kie-models` skill) | Сделано 2026-10-13: `py/render/` переписан, 7 typed errors, schema-driven submit, 30/30 unit-тестов. Live smoke отложен до получения `KIE_API_KEY` через `scripts/setup_keys.sh`. |
 
 ---
 

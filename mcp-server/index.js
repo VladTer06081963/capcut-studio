@@ -6,12 +6,30 @@ import {
   ErrorCode,
   McpError
 } from "@modelcontextprotocol/sdk/types.js";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import fs from "fs";
+import os from "os";
+import { fileURLToPath } from "url";
+import { resolveConcatProjectPaths } from "./lib/concat_paths.js";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const episodeSlugPattern = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+function getEpisodeArgs(args) {
+  const { serial, ep } = args ?? {};
+  if (
+    typeof serial !== "string" ||
+    !episodeSlugPattern.test(serial) ||
+    typeof ep !== "string" ||
+    !episodeSlugPattern.test(ep)
+  ) {
+    throw new Error("serial and ep must be simple episode slugs");
+  }
+  return { serial, ep };
+}
 
 class CapcutMcpServer {
   constructor() {
@@ -37,8 +55,16 @@ class CapcutMcpServer {
             inputSchema: {
               type: "object",
               properties: {
-                serial: { type: "string", description: "Serial slug (e.g., cyber-heist)" },
-                ep: { type: "string", description: "Episode slug (e.g., ep-01-infiltration)" }
+                serial: {
+                  type: "string",
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  description: "Serial slug (e.g., cyber-heist)"
+                },
+                ep: {
+                  type: "string",
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  description: "Episode slug (e.g., ep-01-infiltration)"
+                }
               },
               required: ["serial", "ep"]
             }
@@ -49,8 +75,8 @@ class CapcutMcpServer {
             inputSchema: {
               type: "object",
               properties: {
-                serial: { type: "string" },
-                ep: { type: "string" }
+                serial: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+                ep: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$" }
               },
               required: ["serial", "ep"]
             }
@@ -64,13 +90,21 @@ class CapcutMcpServer {
 
       if (name === "assemble_episode") {
         try {
-          const { stdout, stderr } = await execAsync(`python3 scripts/assemble_episode.py --serial ${args.serial} --ep ${args.ep}`, { cwd: path.resolve(process.cwd(), "..") });
+          const { serial, ep } = getEpisodeArgs(args);
+          const { stdout, stderr } = await execFileAsync("python3", [
+            path.join(repoRoot, "scripts", "assemble_episode.py"),
+            "--serial",
+            serial,
+            "--ep",
+            ep
+          ], { cwd: repoRoot });
           return {
             content: [{ type: "text", text: `Output:\n${stdout}\n${stderr}` }]
           };
         } catch (e) {
+          const details = [e.stdout, e.stderr].filter(Boolean).join("\n");
           return {
-            content: [{ type: "text", text: `Error: ${e.message}\n${e.stdout}\n${e.stderr}` }],
+            content: [{ type: "text", text: `Error: ${e.message}${details ? `\n${details}` : ""}` }],
             isError: true
           };
         }
@@ -78,26 +112,45 @@ class CapcutMcpServer {
 
       if (name === "open_in_concat") {
         try {
-          const draftPath = path.resolve(process.cwd(), "..", "serials", args.serial, args.ep, "rendered", "draft.json");
+          const { serial, ep } = getEpisodeArgs(args);
+          const { draftPath, projectDir, concatJsonPath } = resolveConcatProjectPaths(serial, ep, {
+            repoRoot,
+            home: os.homedir()
+          });
           if (!fs.existsSync(draftPath)) {
             return {
               content: [{ type: "text", text: `Error: ${draftPath} not found. Run assemble_episode first.` }],
               isError: true
             };
           }
-          const projectName = `${args.serial}-${args.ep}`;
-          const concatWorkspace = path.join(process.env.HOME, "Desktop", "Concat");
-          const projectDir = path.join(concatWorkspace, projectName);
-          const concatJsonPath = path.join(projectDir, "concat.json");
-
+          if (fs.existsSync(concatJsonPath)) {
+            return {
+              content: [{
+                type: "text",
+                text: `Error: ${concatJsonPath} already exists. Refusing to overwrite; remove the existing Concat project first if you want to regenerate.`
+              }],
+              isError: true
+            };
+          }
           if (!fs.existsSync(projectDir)) {
             fs.mkdirSync(projectDir, { recursive: true });
           }
-          await execAsync(`python3 scripts/convert_draft.py "${draftPath}" "${concatJsonPath}"`, { cwd: path.resolve(process.cwd(), "..") });
+          await execFileAsync("python3", [
+            path.join(repoRoot, "scripts", "convert_draft.py"),
+            draftPath,
+            concatJsonPath
+          ], { cwd: repoRoot });
 
-          const { stdout, stderr } = await execAsync(`open -a Concat.app`);
+          const { stdout, stderr } = await execFileAsync(
+            "open",
+            ["-a", "Concat.app", concatJsonPath],
+            { cwd: repoRoot }
+          );
           return {
-            content: [{ type: "text", text: `Converted draft to ${concatJsonPath} and opened Concat.app.\n${stdout}\n${stderr}` }]
+            content: [{
+              type: "text",
+              text: `Converted draft to ${concatJsonPath} and opened Concat.app.\n${stdout}\n${stderr}`
+            }]
           };
         } catch (e) {
           return {

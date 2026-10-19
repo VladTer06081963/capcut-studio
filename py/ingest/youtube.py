@@ -166,7 +166,7 @@ DEFAULT_YDL_OPTS: dict[str, Any] = {
     # Note: progressive MP4s on YouTube have acodec != None; video-only
     # adaptive streams have acodec == None, so the [acodec!=none] filter
     # correctly excludes the 144p/360p video-only formats yt-dlp lists.
-    "format": "best[ext=mp4][acodec!=none][height<=720]/(bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a])/best[ext=mp4]/best",
+    "format": "best[ext=mp4][vcodec^=avc1][height<=1080]/(bestvideo[ext=mp4][vcodec^=avc1][height<=1080]+bestaudio[ext=m4a])/best[ext=mp4]/best",
     "outtmpl": "%(id)s.%(ext)s",
     "noplaylist": True,
     "quiet": True,

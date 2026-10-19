@@ -1,16 +1,39 @@
 import json
 import sys
 
+
+def _fps_to_rate(fps):
+    """Best-effort conversion of a project fps to (rateNum, rateDen).
+
+    Falls back to (30, 1) when fps is missing, non-numeric, zero, or negative.
+
+    Note: this currently rounds to the nearest integer and uses a denominator
+    of 1. NTSC-style non-integer fps (e.g. 23.976, 29.97) collapse to the
+    nearest integer here; extend if/when the project needs that fidelity.
+    """
+    try:
+        f = float(fps)
+    except (TypeError, ValueError):
+        return 30, 1
+    if not (f > 0):
+        return 30, 1
+    return int(round(f)), 1
+
+
 def convert(draft_path, out_path):
     with open(draft_path, "r") as f:
         draft = json.load(f)
-    
+
+    rate_num, rate_den = _fps_to_rate(
+        draft.get("project", {}).get("fps")
+    )
+
     media = []
     clips = []
-    
+
     m_idx = 1
     c_idx = 1
-    
+
     for track in draft.get("tracks", []):
         for c in track.get("clips", []):
             if c.get("src"):
@@ -20,7 +43,7 @@ def convert(draft_path, out_path):
                     "id": media_id,
                     "path": c["src"]
                 })
-                
+
                 clips.append({
                     "duration": float(c["duration_sec"]),
                     "fadeIn": 0.0,
@@ -58,12 +81,12 @@ def convert(draft_path, out_path):
                 "id": "TL1",
                 "name": "Timeline 1",
                 "tracks": [{ "id": "T1", "muted": False, "visible": True }],
-                "video": { "width": 1920, "height": 1080, "rateNum": 30, "rateDen": 1 }
+                "video": { "width": 1920, "height": 1080, "rateNum": rate_num, "rateDen": rate_den }
             }
         ],
         "tracks": [{ "id": "T1", "muted": False, "visible": True }],
         "version": 1,
-        "video": { "width": 1920, "height": 1080, "rateNum": 30, "rateDen": 1 }
+        "video": { "width": 1920, "height": 1080, "rateNum": rate_num, "rateDen": rate_den }
     }
 
     with open(out_path, "w") as f:

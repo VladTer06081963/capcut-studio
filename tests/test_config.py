@@ -8,17 +8,22 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+def _no_dotenv():
+    """Stop config reload from re-reading the developer's real .env."""
+    return patch("dotenv.load_dotenv", lambda *a, **k: False)
+
+
 class ConfigTest(unittest.TestCase):
     def test_defaults_when_no_env(self) -> None:
         # Force a clean env for this test (no .env loaded either)
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {}, clear=True), _no_dotenv():
             # Re-import to pick up clean state
             import importlib
 
             from py.lib import config
 
             importlib.reload(config)
-            self.assertEqual(config.DEFAULT_VIDEO_PROVIDER, "minimax-h3-max")
+            self.assertEqual(config.DEFAULT_VIDEO_PROVIDER, "kie/veo-3-1")
             self.assertEqual(config.DEFAULT_TEXT_PROVIDER, "qwen3-max")
             self.assertEqual(config.DEFAULT_IMAGE_PROVIDER, "qwen-image")
             self.assertFalse(config.has_minimax())
@@ -36,7 +41,7 @@ class ConfigTest(unittest.TestCase):
                 "COVERR_API_KEY": "cov-test",
             },
             clear=True,
-        ):
+        ), _no_dotenv():
             import importlib
 
             from py.lib import config
@@ -51,7 +56,7 @@ class ConfigTest(unittest.TestCase):
         from py.lib import config
 
         # LIBRARY_ROOT should be inside PROJECT_ROOT unless explicitly overridden
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {}, clear=True), _no_dotenv():
             import importlib
 
             importlib.reload(config)
@@ -63,7 +68,7 @@ class ConfigTest(unittest.TestCase):
     def test_ensure_dirs_creates_tree(self) -> None:
         from py.lib import config
 
-        with patch.dict(os.environ, {"LIBRARY_ROOT": "/tmp/_capcut_test_lib"}, clear=True):
+        with patch.dict(os.environ, {"LIBRARY_ROOT": "/tmp/_capcut_test_lib"}, clear=True), _no_dotenv():
             import importlib
             import shutil
 

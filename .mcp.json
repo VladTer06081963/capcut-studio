@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "capcut-pipeline": {
+      "command": "node",
+      "args": ["./mcp-server/index.js"],
+      "description": "CapCut Studio pipeline MCP"
+    }
+  }
+}

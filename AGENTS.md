@@ -13,12 +13,12 @@ episodes are assembled from the library, not freshly generated per scene.
 # Python (3.11+)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r py/requirements.txt   # to be added in step 2
+pip install -r py/requirements.txt
 
 # Node sub-packages — no workspaces, install each
-(cd mcp-server && npm install)      # to be added in step 3
+(cd mcp-server && npm install)
 
-cp .env.example .env   # fill MINIMAX_API_KEY + OPENROUTER_API_KEY at minimum
+cp .env.example .env   # add only keys required for the selected, approved workflow
 ```
 
 ## Run
@@ -26,14 +26,14 @@ cp .env.example .env   # fill MINIMAX_API_KEY + OPENROUTER_API_KEY at minimum
 | Service | Command | Default bind |
 |---|---|---|
 | MCP server | `node mcp-server/index.js` | stdio |
-| Ingest library | `python scripts/ingest_pixabay.py --query "..."` | — |
+| Ingest stock | `python scripts/ingest_youtube.py --help` (also `ingest_coverr.py`, `ingest_mixkit.py`, `ingest_archive.py`) | — |
 | Index library | `python scripts/index_library.py` | LM Studio at `$LM_STUDIO_URL` |
 | Assemble episode | `python scripts/assemble_episode.py --serial <slug> --ep <id>` | — |
-| Nightly batch (dry) | `bash cron/nightly.sh --dry-run` | — |
+| Nightly batch | Not implemented in the current tree (`cron/nightly.sh` is absent) | — |
 
-External services used:
-- **MiniMax Plus** (cloud) — `py/render/minimax_client.py` for H3.0/H3 Max video gen
-- **OpenRouter** — `py/render/openrouter_client.py` for Qwen3-Max text + Qwen-Image
+External services and models are configurable and may change during evaluation:
+- **Video generation:** current config default is `kie/veo-3-1` through `py/render/kie_client.py`; this is not a user-approved permanent production choice.
+- **Text/spec writing:** local LM Studio is tried for the default model in `py/episode/spec_writer.py`; OpenRouter is a conditional fallback/route. Check current code and environment rather than assuming a fixed model.
 - **Pixabay / Pexels / YouTube** — `py/ingest/` for stock library
 - **LM Studio** (local, WireGuard) — `py/index/` for BLIP-2 / CLIP embeddings
 - **Concat** (Mac Studio, MCP) — auto-compose timeline
@@ -51,7 +51,7 @@ capcut-studio/
 │  ├─ _TEMPLATE_character.md
 │  └─ <show-slug>.md             ← real shows
 ├─ library/                      ← growing asset base (shared across shows)
-│  ├─ ai/                        ← AI-generated (H3.0, Qwen-Image)
+│  ├─ ai/                        ← AI-generated with selected models
 │  │  ├─ characters/<slug>/*.mp4
 │  │  └─ scenes/<slug>/*.mp4
 │  ├─ stock/                     ← downloaded from Pixabay / Pexels / YouTube
@@ -67,18 +67,18 @@ capcut-studio/
 │     └─ rendered/
 │        ├─ draft.json           ← Concat draft
 │        ├─ preview.mp4
-│        └─ final.mp4
+│        └─ final.mp4             ← immutable from creation by project policy
 ├─ py/
 │  ├─ ingest/                    ← stock downloaders (pexels.py, pixabay.py, youtube.py)
 │  ├─ episode/                   ← script → spec.json (LLM)
-│  ├─ render/                    ← MiniMax + OpenRouter clients, provider_router
+│  ├─ render/                    ← configurable provider clients and router
 │  ├─ index/                     ← BLIP-2 / CLIP embedder
 │  ├─ search/                    ← embedding search → ranked candidates
 │  ├─ assemble/                  ← spec.json + matched.json → Concat draft
 │  └─ lib/                       ← config, lifecycle, logging
 ├─ mcp-server/                   ← exposes tools to Hermes / Mavis
 ├─ scripts/                      ← CLI entry points (Python)
-├─ cron/                         ← nightly batch (asset gen, ingest, reindex)
+├─ cron/                         ← reserved for automation; nightly script is not currently present
 ├─ openspec/                     ← in-flight spec changes (mirror comic-studio)
 ├─ tests/                        ← Python unittest
 └─ docs/
@@ -97,15 +97,21 @@ capcut-studio/
 - **Lifecycle as files on disk.** Episodes live in `serials/<show>/<ep-id>/`
   with sentinel files (`.draft`, `.approved`) and `rendered/`. State is never
   in memory.
-- **Approval gate.** Auto-assembly requires `.approved` sentinel in the
-  episode dir. No sentinel → no render.
-- **Idempotency.** Use episode id + asset sha. Re-running `assemble_episode`
-  on an already-rendered episode without explicit `--force` is a no-op.
+- **Approval gate (policy).** Do not publish a final render without review and
+  approval. The current `scripts/assemble_episode.py` builds a draft and does
+  not enforce `.approved`; no automated final-render CLI is confirmed. Do not
+  claim the approval gate is technically enforced until that path exists and
+  is tested.
+- **Idempotency (policy/helpers).** `py/lib/lifecycle.py` provides spec-hash
+  helpers. The current draft assembler is not a final renderer and does not
+  provide the documented `--force`/no-op contract for `final.mp4`.
 - **Updates only via revise / remix.**
   - `draft` / `approved` → `revise` (regenerate spec.json from brief, atomic approval revoke)
   - `rendered` → `remix` (creates new episode with `remix_of`)
 - **`rendered/final.mp4` is immutable.** Never edit, delete, or re-render.
   New edits produce a remix.
+  This is the project policy from the moment the file is created; the current
+  tree has no verified final-render writer enforcing this rule yet.
 - **`library/index.sqlite` is shared.** All episodes read it. Index updates
   must be additive (new rows); deletes only via explicit GC.
 - **Source attribution mandatory.** Every asset in `library/` carries
@@ -117,22 +123,20 @@ capcut-studio/
 ```
 bible/<show-slug>.md
     ↓ frozen style + cast
-cron/nightly.sh
-    ↓ generates library/ai/{characters,scenes}/*.mp4
-scripts/ingest_pixabay.py
-    ↓ B-roll into library/stock/pixabay/*.mp4
+planned automation (not implemented)
+    ↓ optional, explicitly approved generation / stock ingest
+library/ai/{characters,scenes}/*.mp4 + library/stock/<source>/*
 scripts/index_library.py
     ↓ BLIP-2 / CLIP → library/index.sqlite
 brief.md
-    ↓ Hermes / Qwen3-Max
+    ↓ spec writer (local LM Studio / configured fallback)
 spec.json
     ↓ matcher (embedding search)
 matched.json
     ↓ Concat MCP
 draft.json + preview.mp4
     ↓ human review + .approved sentinel
-scripts/render_episode.py
-    ↓ MiniMax H3.0 (only for clips library doesn't have) + assemble
+manual render/export workflow (no final-render CLI confirmed)
 rendered/final.mp4
     ↓ append to episode-log.md
 next episode
@@ -186,11 +190,24 @@ clips(id, path, sha256, source, model, caption, embedding BLOB, tags JSON)
 
 ## AI providers
 
-- **Default video:** `minimax-h3-max` (cloud) via `py/render/minimax_client.py`.
-  Override per-scene in `spec.json` (`provider`, `model`).
-- **Default text:** `qwen3-max` via OpenRouter subscription.
-- **Default image:** `qwen-image` via OpenRouter (used for character
-  reference sheets that get fed to H3.0 as init images).
+- **Model choice requires explicit user approval before generation.** State the provider and exact model for the requested task; proceed when the user specifies or approves that model. A default is not approval. Never silently switch to another provider/model or start an unrelated future run under a previous approval. Do not require price research, a price snapshot, output-count cap, or budget cap as a precondition. The user may check prices independently if they want to.
+- **Subscription providers:** MiniMax image generation is covered by the user's subscription for this workflow. Do not query or impose provider usage limits, calculate a per-output price, or ask for a monetary/credit cap. Still obtain the user's approval of the model before generating; do not assume subscription coverage authorizes another model or unrelated task.
+- Local, free-tier, and trial routes may be used for prototypes when their selected model/provider is clear. Do not silently route a failed local request to a different paid provider.
+- Record provider/model, task, observed latency/quality, failures, and whether the result is prototype-only or approved for production in the relevant `summary/tasks/` or `summary/audit/` entry. Record price only when the user requests it or it is needed for a specific decision; never record credentials.
+- Current implementation snapshot: `py/lib/config.py` sets video default
+  `kie/veo-3-1`, text config value `qwen3-max`, and image config value
+  `qwen-image`. These are runtime/config defaults, not approved provider
+  decisions. `py/episode/spec_writer.py` separately defaults to
+  `qwen2.5-coder-7b-instruct-mlx` and routes through local LM Studio/OpenRouter
+  according to its call logic.
+- Video provider selection in `py/render/provider_router.py` accepts per-scene
+  provider/model overrides and environment defaults. Direct `minimax` backend
+  is not implemented there. `DEFAULT_VIDEO_FALLBACK` exists in config, but
+  `ProviderRouter.generate()` only uses the explicit fallback list passed to
+  the method; do not assume the env list is automatically applied.
+- These values may change as local/trial options are evaluated against cloud
+  candidates for final speed and quality. See `summary/audit/` for measured
+  decisions and use current code for exact runtime behavior.
 - **Fallback B-roll:** stock — **UA-friendly order**:
   YouTube → Coverr → Mixkit → Archive.org. Pixabay/Pexels kept as
   skip-if-blocked fallbacks (their web returns 403 from UA; API may
@@ -199,11 +216,10 @@ clips(id, path, sha256, source, model, caption, embedding BLOB, tags JSON)
   and tags `source: stock` (with sub-source: youtube/coverr/...) in
   `matched.json`.
 
-**Auto-fallback chain:**
-1. AI clip from library (exact character/scene match)
-2. AI clip from library (close match — different scene, same character)
-3. Stock clip (Pexels/Pixabay by visual embedding)
-5. Stub — Concat placeholder clip (NEVER silently, always with `warning`)
+**Asset matching priority:** AI clip from library → stock candidate according
+to source preference. Any placeholder/fallback behavior must be explicit in
+the returned data; verify the current matcher/assembler before relying on a
+specific chain.
 
 ## Polishing
 
@@ -219,10 +235,11 @@ R&D / prep, **not production**. Same discipline as comic-studio: lifecycle,
 bible, approval gate, .env hygiene, fixation procedure. The pipeline pieces
 exist; the open problems are:
 
-- **Character consistency across AI clips** — H3.0 with reference images
-  is ~85% reliable; the remaining 15% requires DaVinci touch-up.
-- **Scene drift across episodes** — same setting regenerated looks 70–80%
-  similar; need to test if `bible/_TEMPLATE_scene.md` recipe pins it.
+- **Character consistency across AI clips** — historical R&D estimates cite
+  H3.0/reference-image consistency, but no current stress-test evidence is
+  recorded; validate before using those figures as a project baseline.
+- **Scene drift across episodes** — historical estimates exist, but a current
+  measured baseline and stress test are not recorded.
 - **Automated assembly quality** — Hermes matches clips; Concat places
   them; humans grade. We don't yet know how often human review is needed.
 
@@ -245,14 +262,14 @@ over Thunderbolt.
 │     ├─ serials/               ← episodes               │
 │     ├─ index.sqlite           ← embeddings + tags      │
 │     ├─ bible/                 ← frozen templates       │
-│     └─ cron/ (via launchd)    ← daily batch jobs       │
+│     └─ cron/                 ← automation planned, absent│
 │                                                        │
 │   Concat.app             (auto-compose, MCP)           │
 │   Hermes / Mavis Plus    (LLM orchestration)           │
-│   LM Studio              (BLIP-2 / CLIP indexer)       │
-│   MiniMax H3.0           (cloud, via Plus Plan)        │
-│   OpenRouter / Qwen      (cloud subscription)          │
-│   Pixabay / Pexels / YT / Coverr / Mixkit / Archive.org (stock APIs; UA-friendly primary: YouTube + Coverr + Mixkit)
+│   LM Studio              (local text/embedding tasks)   │
+│   Cloud providers        (selected per approved experiment)│
+│   Local/trial models     (prototype where suitable)    │
+│   Stock sources          (YouTube, Coverr, Mixkit, Archive.org)
 │                                                        │
 └────────────────────────────────────────────────────────┘
           │ Thunderbolt 40 Gb/s (read/write)
@@ -286,18 +303,23 @@ recurring cost, (b) library exceeds local storage budget, or (c) cron needs
 to run when Mac Studio is asleep. None of these are blockers now.
 
 **Cron on macOS:** use `launchd` (`.plist` in `~/Library/LaunchAgents/`),
-not cron. `cron/nightly.sh` exists as the script; `cron/com.MiniMax.capcut-studio.nightly.plist`
-will be the launchd wrapper when we add it.
+not cron. Nightly automation is planned but `cron/nightly.sh` and its launchd
+plist are absent from the current tree; do not document or invoke them as
+available commands.
 
 ## Image / video gen provider
 
 Mirrors comic-studio routing but for video. Override hierarchy for video
 generation:
 
-1. CLI override (`--video-provider` flag in `scripts/`)
-2. `spec.json["scenes"][i]["provider"]` (per-scene)
-3. `bible/<show>.md` → `GENRE_DEFAULT` (table TBD)
-4. env `DEFAULT_VIDEO_PROVIDER` (default `minimax-h3-max`)
+1. Per-scene `spec.json["scenes"][i]["provider"]`
+2. Per-scene `model_id` shorthand
+3. Caller-supplied default
+4. env `DEFAULT_VIDEO_PROVIDER` (current code default: `kie/veo-3-1`)
+
+The documented CLI and bible overrides are not confirmed in the current
+router/callers. Verify an override path in code before relying on it. A
+provider default or fallback never authorizes a paid generation.
 
 ## Fixation procedure
 
@@ -310,7 +332,20 @@ Numbering shared with `summary/tasks/` and `summary/audit/` (TBD).
 - Branch from `main`; never push to it directly.
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`,
   `test:`.
-- `openspec/` is source of truth for in-flight changes — archive when landed.
+- Use OpenSpec for future changes that affect multiple components, pipeline
+  contracts/data formats, lifecycle/approval rules, provider architecture, or
+  introduce a substantial capability. Before implementation, create
+  `openspec/changes/<slug>/proposal.md` and `tasks.md`; add
+  `specs/<module>/spec.md` when the change alters a module's behavior or
+  contract. Keep the proposal concise and record the intended behavior,
+  boundaries, and validation.
+- Small, isolated fixes that do not change a contract do not need OpenSpec;
+  record them in `summary/tasks/` and `summary/audit/` as appropriate.
+- Do not retroactively create OpenSpec changes for work already completed.
+  When an in-flight change is complete, record actual outcomes and validation
+  in the summary audit, update `CHANGELOG.md` when warranted, and move the
+  change directory to `openspec/changes/archive/`. `openspec/` is the source
+  of truth for in-flight changes.
 
 ## Extension points
 

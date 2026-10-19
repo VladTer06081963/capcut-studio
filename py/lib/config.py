@@ -50,9 +50,18 @@ STOCK_DIR: Path = LIBRARY_ROOT / "stock"
 # Provider defaults (override hierarchy: CLI > spec > env > hardcoded)
 # ---------------------------------------------------------------------------
 
-DEFAULT_VIDEO_PROVIDER: str = os.environ.get("DEFAULT_VIDEO_PROVIDER", "minimax-h3-max")
+DEFAULT_VIDEO_PROVIDER: str = os.environ.get("DEFAULT_VIDEO_PROVIDER", "kie/veo-3-1")
+DEFAULT_VIDEO_MODEL: str = os.environ.get("DEFAULT_VIDEO_MODEL", "veo-3-1")
 DEFAULT_TEXT_PROVIDER: str = os.environ.get("DEFAULT_TEXT_PROVIDER", "qwen3-max")
 DEFAULT_IMAGE_PROVIDER: str = os.environ.get("DEFAULT_IMAGE_PROVIDER", "qwen-image")
+# Comma-separated fallback candidates. ProviderRouter.generate() currently
+# does not load this setting automatically; callers must pass fallbacks
+# explicitly. Never treat configured paid candidates as approved spend.
+# Real kie.ai model ids (use kie-models skill to discover more):
+DEFAULT_VIDEO_FALLBACK: str = os.environ.get(
+    "DEFAULT_VIDEO_FALLBACK",
+    "kling/v2-1-master-text-to-video,runway/gen-4-turbo,bytedance/seedance-2.0"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +73,17 @@ MINIMAX_BASE_URL: str = os.environ.get("MINIMAX_BASE_URL", "https://api.MiniMax.
 
 OPENROUTER_API_KEY: str | None = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL: str = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
+GEMINI_API_KEY: str | None = os.environ.get("GEMINI_API_KEY")
+GEMINI_BASE_URL: str = os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
+
+# Kie.ai — unified video/image/audio/LLM API (OpenRouter-for-media).
+# Get a key at https://kie.ai (credit-based, ~30% off direct pricing).
+# Used by py/render/kie_client.py; default video provider since F-013.
+KIE_API_KEY: str | None = os.environ.get("KIE_API_KEY")
+KIE_BASE_URL: str = os.environ.get("KIE_BASE_URL", "https://api.kie.ai")
+# Where to cache downloaded result files (Kie URLs expire ~24h)
+KIE_DOWNLOAD_DIR: Path = Path(os.environ.get("KIE_DOWNLOAD_DIR", str(LIBRARY_TEMP / "kie_downloads")))
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +146,16 @@ def has_openrouter() -> bool:
     return bool(OPENROUTER_API_KEY)
 
 
+def has_gemini() -> bool:
+    """True if Google AI Studio (Gemini) API key is configured."""
+    return bool(GEMINI_API_KEY)
+
+
+def has_kie() -> bool:
+    """True if Kie.ai API key is configured (enables video generation)."""
+    return bool(KIE_API_KEY)
+
+
 def has_youtube() -> bool:
     """True if YouTube Data API v3 key is configured."""
     return bool(YOUTUBE_API_KEY)
@@ -157,12 +187,19 @@ __all__ = [
     "AI_DIR",
     "STOCK_DIR",
     "DEFAULT_VIDEO_PROVIDER",
+    "DEFAULT_VIDEO_MODEL",
+    "DEFAULT_VIDEO_FALLBACK",
     "DEFAULT_TEXT_PROVIDER",
     "DEFAULT_IMAGE_PROVIDER",
     "MINIMAX_API_KEY",
     "MINIMAX_BASE_URL",
     "OPENROUTER_API_KEY",
     "OPENROUTER_BASE_URL",
+    "GEMINI_API_KEY",
+    "GEMINI_BASE_URL",
+    "KIE_API_KEY",
+    "KIE_BASE_URL",
+    "KIE_DOWNLOAD_DIR",
     "YOUTUBE_API_KEY",
     "COVERR_API_KEY",
     "MIXKIT_SCRAPE_DELAY_SEC",
@@ -175,6 +212,8 @@ __all__ = [
     "DAILY_AI_BUDGET_USD",
     "has_minimax",
     "has_openrouter",
+    "has_gemini",
+    "has_kie",
     "has_youtube",
     "has_coverr",
     "is_test_env",

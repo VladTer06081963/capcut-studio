@@ -1,0 +1,134 @@
+:root {
+  color-scheme: dark;
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #101218;
+  color: #eef0f5;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 48px 20px;
+}
+
+main {
+  width: min(100%, 720px);
+  margin: 0 auto;
+}
+
+.eyebrow {
+  color: #aab5d3;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+h1 {
+  margin: 12px 0 4px;
+  font-size: clamp(1.8rem, 5vw, 2.5rem);
+  line-height: 1.15;
+}
+
+header > p,
+.notice p {
+  color: #bac0ce;
+}
+
+.notice {
+  margin: 28px 0;
+  padding: 16px 18px;
+  border: 1px solid #79602c;
+  border-radius: 10px;
+  background: #211d15;
+}
+
+.notice p {
+  margin: 5px 0 0;
+}
+
+form {
+  display: grid;
+  gap: 10px;
+}
+
+form > label,
+#custom-provider-row > label {
+  margin-top: 10px;
+  font-weight: 650;
+}
+
+select,
+input,
+textarea,
+button {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #454b5a;
+  border-radius: 8px;
+  background: #1b1f29;
+  color: inherit;
+  font: inherit;
+}
+
+select:focus,
+input:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid #829bff;
+  outline-offset: 2px;
+}
+
+input[readonly] {
+  color: #c4cada;
+}
+
+textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 16px 0 4px;
+  font-weight: 400;
+}
+
+.confirm input {
+  flex: 0 0 auto;
+  width: 18px;
+  min-height: 18px;
+  margin: 3px 0 0;
+  accent-color: #829bff;
+}
+
+button {
+  border: 0;
+  background: #4c6ff0;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#result {
+  min-height: 48px;
+  margin-top: 18px;
+  overflow-wrap: anywhere;
+  color: #c9d2ff;
+}
+
+@media (max-width: 520px) {
+  body {
+    padding: 28px 16px;
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "providers": [
+    {
+      "id": "draw-things",
+      "label": "Draw Things (локально; ID модели зависит от установленной модели)"
+    },
+    {
+      "id": "minimax",
+      "label": "MiniMax"
+    },
+    {
+      "id": "kie",
+      "label": "KIE"
+    },
+    {
+      "id": "openrouter",
+      "label": "OpenRouter"
+    },
+    {
+      "id": "lm-studio",
+      "label": "LM Studio (локально)"
+    }
+  ],
+  "models": [
+    {
+      "provider": "kie",
+      "model_id": "veo-3-1",
+      "label": "KIE · veo-3-1",
+      "task_types": ["video"],
+      "note": "Project video default; verify availability in your account before selecting."
+    },
+    {
+      "provider": "kie",
+      "model_id": "bytedance/v1-lite-text-to-video",
+      "label": "KIE · bytedance/v1-lite-text-to-video",
+      "task_types": ["video"],
+      "note": "Existing generation-script default; listed for explicit selection only."
+    },
+    {
+      "provider": "kie",
+      "model_id": "kling/v2-1-master-text-to-video",
+      "label": "KIE · kling/v2-1-master-text-to-video",
+      "task_types": ["video"],
+      "note": "Existing smoke-test example; listed for explicit selection only."
+    },
+    {
+      "provider": "minimax",
+      "model_id": "minimax-video-01",
+      "label": "MiniMax · minimax-video-01",
+      "task_types": ["video"],
+      "note": "Model ID referenced by the existing MiniMax client."
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "qwen3-max",
+      "label": "OpenRouter · qwen3-max",
+      "task_types": ["text"],
+      "note": "Project text-provider setting; verify the exact account model ID."
+    },
+    {
+      "provider": "lm-studio",
+      "model_id": "qwen2.5-coder-7b-instruct-mlx",
+      "label": "LM Studio · qwen2.5-coder-7b-instruct-mlx",
+      "task_types": ["text"],
+      "note": "Model ID used by the current spec writer."
+    }
+  ]
+}

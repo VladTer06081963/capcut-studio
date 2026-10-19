@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Согласование модели — CapCut Studio</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="eyebrow">CAPCUT STUDIO · ЛОКАЛЬНАЯ ПАНЕЛЬ</span>
+      <h1>Согласование модели</h1>
+      <p>Выберите провайдера и точную модель для одной задачи.</p>
+    </header>
+
+    <aside class="notice">
+      <strong>Важно</strong>
+      <p>Подтверждение создаёт одноразовое разрешение на эту задачу, но не запускает генерацию.
+        Панель не обращается к внешним каталогам, ценам или лимитам и не принимает API-ключи.</p>
+    </aside>
+
+    <form id="approval-form">
+      <label for="task-type">Тип задачи</label>
+      <select id="task-type">
+        <option value="video">Видео</option>
+        <option value="image">Изображение</option>
+        <option value="text">Текст / сценарий</option>
+        <option value="other">Другое</option>
+      </select>
+
+      <label for="provider-choice">Провайдер</label>
+      <select id="provider-choice" required>
+        <option value="">Загрузка локального списка…</option>
+      </select>
+
+      <div id="custom-provider-row" hidden>
+        <label for="custom-provider">ID другого провайдера</label>
+        <input id="custom-provider" maxlength="80" autocomplete="off">
+      </div>
+
+      <label for="model-choice">Модель из списка провайдера</label>
+      <select id="model-choice" disabled>
+        <option value="">Сначала выберите провайдера…</option>
+      </select>
+
+      <label for="model-id">Точный ID модели</label>
+      <input id="model-id" maxlength="200" required autocomplete="off" readonly>
+
+      <label for="scope">Задача и её scope</label>
+      <textarea id="scope" maxlength="1000" required
+        placeholder="Например: прототип иллюстрации для сцены 2 эпизода ep-01"></textarea>
+
+      <label class="confirm" for="confirm">
+        <input id="confirm" type="checkbox">
+        <span>Я подтверждаю именно эту модель для указанной выше задачи.</span>
+      </label>
+
+      <button id="submit" type="submit" disabled>
+        Создать одноразовое разрешение · 30 минут
+      </button>
+    </form>
+
+    <div id="result" role="status" aria-live="polite"></div>
+  </main>
+</body>
+</html>

@@ -493,3 +493,47 @@ brief.md → spec.json (LM Studio, 6 scenes) → matched.json (5/6 matched)
 - ⏳ BLIP-2 captioning (model not loaded in LM Studio)
 - ⏳ Coverr API key (заявка не вышла в UI — работаем без)
 - ⏳ Concat MCP (F7 deferred)
+
+- `2026-10-13T01:37:26+03:00` — Первый сквозной эксперимент Pi↔MCP↔Concat:
+  проверен эпизод cyber-heist (7/7 клипов), добавлен отказ от перезаписи
+  существующего Concat-проекта, исправлен перенос FPS 24/1 и проверен тестами.
+  Concat GUI не подтверждён визуально; временная проверка исправленного
+  экспорта остаётся следующей задачей. **(отдельный changelog-запись, не
+  входит в fixation 020)**
+
+## 2026-10-13T15:00Z — Fixation 020: kie-models refactor
+
+**Context**: after `npx skills add https://kie.ai` the actual Kie.ai API
+contract turned out to differ from the hand-rolled `py/render/kie_client.py`
+on several critical points (error codes in body, not HTTP; schema-driven
+reference-image field; separate upload domain; per-pool rate limits).
+
+**Решения зафиксированы**:
+- `py/render/kie_client.py` — full rewrite aligned with the official
+  `kie-models` skill: 7 typed errors (KieAuth/Credit/NotFound/Validation/
+  RateLimit/SubKeyLimit/Unavailable), schema-driven submit (chooses
+  `image_url` / `input_image` / `first_frame_image` per model), sync
+  chat-model rejection, 3-state result-shape handling (response.resultUrls
+  / response.data.audio_url / response.resultJson), sliding-window
+  per-pool rate limiters (discovery 1.1s, create 0.5s, poll 0.1s), live
+  discovery via `list_models()` / `get_model_schema()` / `get_credit_balance()`,
+  uploads on `KIE_UPLOAD_BASE=kieai.redpandaai.co`
+- `py/render/provider_router.py` — docstring fixed (correct model name
+  example, added backend-vs-model disambiguation note)
+- `py/render/base.py` — `GenerationRequest.model_id` default and
+  docstring updated to `veo-3-1`
+- `tests/test_kie_client.py` — full rewrite, **30/30 unit tests pass**
+  (mocks HTTP; covers ProviderSpec, parse_scene_provider, ProviderRouter,
+  envelope code mapping, state machine, schema-aware submit, availability)
+- `scripts/test_kie.py` — new live smoke harness (`KIE_SMOKE=0` for
+  discovery-only path, no credits spent)
+- `scripts/setup_keys.sh` — new interactive key insertion (reads
+  `KIE_API_KEY` from /dev/tty, writes to .env with chmod 600, never
+  in argv/process listing)
+- `summary/PRD/PRD.md` — §6 expanded from 48 to 184 lines documenting
+  the actual contract; F-020 row added to §16; version 1.1 → 1.3
+- `summary/audit/020_kie_models_refactor.md` + `summary/tasks/020_…` —
+  standard record
+
+**Live test**: deferred until `KIE_API_KEY` is provided through
+`scripts/setup_keys.sh` (key is not to be inserted via chat exposure).

@@ -13,3 +13,6 @@ requests>=2.31          # YouTube Data API v3 HTTP
 
 # Search (F6)
 # numpy>=1.26                  # vector math for embeddings
+
+# Tests
+pytest>=8.0
