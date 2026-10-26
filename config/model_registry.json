@@ -1,8 +1,8 @@
 {
   "providers": [
     {
-      "id": "draw-things",
-      "label": "Draw Things (локально; ID модели зависит от установленной модели)"
+      "id": "comfyui",
+      "label": "ComfyUI (локально; локальный FLUX/GGUF, порт 8189)"
     },
     {
       "id": "minimax",
