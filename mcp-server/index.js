@@ -102,6 +102,12 @@ class CapcutMcpServer {
                   type: "boolean",
                   description:
                     "Force the re-encode path instead of stream copy (default: false)"
+                },
+                resolution: {
+                  type: "string",
+                  pattern: "^[0-9]+x[0-9]+$",
+                  description:
+                    "Target resolution for the re-encode path, WxH (e.g. 1920x1080). Default: the timeline's project resolution."
                 }
               },
               required: ["serial", "ep"]
@@ -196,11 +202,41 @@ class CapcutMcpServer {
             "--ep",
             ep
           ];
-          if (args?.reencode === true) {
-            argv.push("--reencode");
+          if (args?.reencode !== undefined) {
+            if (typeof args.reencode !== "boolean") {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Error: reencode must be a boolean, got ${typeof args.reencode}`
+                  }
+                ],
+                isError: true
+              };
+            }
+            if (args.reencode) {
+              argv.push("--reencode");
+            }
+          }
+          if (args?.resolution !== undefined) {
+            if (typeof args.resolution !== "string") {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Error: resolution must be a string, got ${typeof args.resolution}`
+                  }
+                ],
+                isError: true
+              };
+            }
+            argv.push("--resolution", args.resolution);
           }
           const { stdout, stderr } = await execFileAsync("python3", argv, {
-            cwd: repoRoot
+            cwd: repoRoot,
+            // A full render of a long episode takes minutes.
+            timeout: 60 * 60 * 1000,
+            maxBuffer: 10 * 1024 * 1024
           });
           return {
             content: [{ type: "text", text: `Output:\n${stdout}\n${stderr}` }]

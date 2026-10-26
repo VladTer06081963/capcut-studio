@@ -39,9 +39,9 @@
 
 ## 5. Fixation bookkeeping
 
-- [ ] `summary/audit/022_rename_py_to_capcut.md`
-- [ ] `summary/tasks/022_rename_py_to_capcut.md`
-- [ ] `CHANGELOG.md` entry
-- [ ] archive `openspec/changes/rename-py-to-capcut/` →
+- [x] `summary/audit/022_rename_py_to_capcut.md`
+- [x] `summary/tasks/022_rename_py_to_capcut.md`
+- [x] `CHANGELOG.md` entry
+- [x] archive `openspec/changes/rename-py-to-capcut/` →
       `openspec/changes/archive/2026-10-19-rename-py-to-capcut/`
-- [ ] git commit + push on a feature branch, then merge to `main`
+- [x] git commit + push on a feature branch, then merge to `main`

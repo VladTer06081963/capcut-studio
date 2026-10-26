@@ -79,7 +79,7 @@ GEMINI_BASE_URL: str = os.environ.get("GEMINI_BASE_URL", "https://generativelang
 
 # Kie.ai — unified video/image/audio/LLM API (OpenRouter-for-media).
 # Get a key at https://kie.ai (credit-based, ~30% off direct pricing).
-# Used by py/render/kie_client.py; default video provider since F-013.
+# Used by capcut/render/kie_client.py; default video provider since F-013.
 KIE_API_KEY: str | None = os.environ.get("KIE_API_KEY")
 KIE_BASE_URL: str = os.environ.get("KIE_BASE_URL", "https://api.kie.ai")
 # Where to cache downloaded result files (Kie URLs expire ~24h)

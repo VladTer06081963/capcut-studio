@@ -124,9 +124,10 @@ class ConcatListTest(unittest.TestCase):
             timeline = _make_timeline([Path("/tmp/a.mp4"), Path("/tmp/b.mp4")])
             final_renderer.build_concat_list(timeline, out)
             lines = out.read_text().strip().splitlines()
-            self.assertEqual(len(lines), 2)
-            self.assertTrue(lines[0].startswith("file '"))
-            self.assertIn("a.mp4", lines[0])
+            file_lines = [ln for ln in lines if ln.startswith("file '")]
+            self.assertEqual(len(file_lines), 2)
+            self.assertTrue(file_lines[0].startswith("file '"))
+            self.assertIn("a.mp4", file_lines[0])
 
 
 # ---------------------------------------------------------------------------
@@ -150,9 +151,61 @@ class RenderFinalTest(unittest.TestCase):
         final_renderer.render_final(timeline, out)
         self.assertTrue(out.exists())
         self.assertGreater(out.stat().st_size, 0)
-        # no temp file left behind
-        leftovers = list(out.parent.glob(".final.mp4.tmp.mp4"))
+        # no temp file left behind (temp name now carries pid+uuid)
+        leftovers = list(out.parent.glob(".final.mp4.*.tmp.mp4"))
         self.assertEqual(leftovers, [])
+
+    def test_render_trims_to_declared_duration(self) -> None:
+        """A 5s source declared as 2s must produce a ~2s output, not 5s."""
+        clip = _make_source_clip(self.tmp_path / "src" / "a.mp4", seconds=5)
+        timeline = _make_timeline([clip])
+        timeline["tracks"][0]["clips"][0]["duration_sec"] = 2.0
+        out = self.tmp_path / "out" / "final.mp4"
+        final_renderer.render_final(timeline, out)
+        duration = final_renderer.probe_duration(out)
+        assert duration is not None
+        self.assertLess(duration, 3.5)
+        self.assertGreater(duration, 1.0)
+
+    def test_concat_list_emits_duration_directives(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "list.txt"
+            timeline = _make_timeline([Path("/tmp/a.mp4")])
+            timeline["tracks"][0]["clips"][0]["duration_sec"] = 3.5
+            final_renderer.build_concat_list(timeline, out)
+            lines = out.read_text().strip().splitlines()
+            self.assertIn("duration 3.5", lines)
+
+    def test_relative_src_resolved_against_base_dir(self) -> None:
+        """A bare filename must resolve relative to the timeline dir, not CWD."""
+        clip = _make_source_clip(self.tmp_path / "media" / "clip.mp4")
+        timeline = _make_timeline([Path("clip.mp4")])
+        out = self.tmp_path / "out" / "final.mp4"
+        final_renderer.render_final(
+            timeline, out, base_dir=self.tmp_path / "media"
+        )
+        self.assertTrue(out.exists())
+
+    def test_concat_list_writes_absolute_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            out = base / "list.txt"
+            timeline = _make_timeline([Path("clip.mp4")])
+            final_renderer.build_concat_list(timeline, out, base_dir=base)
+            content = out.read_text()
+            self.assertIn(str(base / "clip.mp4"), content)
+
+    def test_quote_escaping_in_concat_list(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            out = base / "list.txt"
+            odd = base / "it's a clip.mp4"
+            odd.touch()
+            timeline = _make_timeline([odd])
+            final_renderer.build_concat_list(timeline, out, base_dir=base)
+            content = out.read_text()
+            # the single quote must be escaped as '\'' for the concat demuxer
+            self.assertIn(r"it'\''s a clip.mp4", content)
 
     def test_render_missing_source_raises(self) -> None:
         timeline = _make_timeline([self.tmp_path / "nope.mp4"])
@@ -161,6 +214,37 @@ class RenderFinalTest(unittest.TestCase):
             final_renderer.render_final(timeline, out)
         self.assertIn("missing", str(ctx.exception).lower())
         self.assertFalse(out.exists())
+
+    def test_invalid_resolution_raises(self) -> None:
+        timeline = _make_timeline([Path("/tmp/a.mp4")])
+        for bad in ("1920", "1920x", "0x1080", "abcxdef"):
+            with self.assertRaises(final_renderer.FinalRenderError):
+                final_renderer.build_ffmpeg_command(
+                    timeline,
+                    Path("/tmp/out.mp4"),
+                    reencode=True,
+                    resolution=bad,
+                )
+
+    def test_reencode_pins_pixel_format(self) -> None:
+        timeline = _make_timeline([Path("/tmp/a.mp4")])
+        cmd = final_renderer.build_ffmpeg_command(
+            timeline, Path("/tmp/out.mp4"), reencode=True
+        )
+        self.assertIn("-pix_fmt", cmd)
+        self.assertEqual(cmd[cmd.index("-pix_fmt") + 1], "yuv420p")
+
+    def test_video_track_without_src_is_skipped(self) -> None:
+        """A video track whose clips all lack src must not shadow a later one."""
+        timeline = {
+            "project": {},
+            "tracks": [
+                {"type": "video", "clips": [{"id": "a", "src": None}]},
+                {"type": "video", "clips": [{"id": "b", "src": "/tmp/b.mp4"}]},
+            ],
+        }
+        clips = final_renderer._video_clips(timeline)
+        self.assertEqual([c["id"] for c in clips], ["b"])
 
     def test_failed_ffmpeg_leaves_no_partial_output(self) -> None:
         clip = _make_source_clip(self.tmp_path / "src" / "a.mp4")
@@ -173,7 +257,26 @@ class RenderFinalTest(unittest.TestCase):
             with self.assertRaises(final_renderer.FinalRenderError):
                 final_renderer.render_final(timeline, out)
         self.assertFalse(out.exists())
-        self.assertEqual(list(out.parent.glob(".final.mp4.tmp.mp4")), [])
+        self.assertEqual(list(out.parent.glob(".final.mp4.*.tmp.mp4")), [])
+
+    def test_concurrent_renders_use_distinct_temp_paths(self) -> None:
+        """Two renders of the same episode must not share a temp path."""
+        clip = _make_source_clip(self.tmp_path / "src" / "a.mp4")
+        timeline = _make_timeline([clip])
+        out = self.tmp_path / "out" / "final.mp4"
+        seen: list[str] = []
+        real_replace = os.replace
+
+        def spy(src, dst):
+            seen.append(str(src))
+            return real_replace(src, dst)
+
+        with patch.object(final_renderer.os, "replace", side_effect=spy):
+            final_renderer.render_final(timeline, out)
+            out.unlink()
+            final_renderer.render_final(timeline, out)
+        self.assertEqual(len(seen), 2)
+        self.assertNotEqual(seen[0], seen[1])
 
     def test_probe_duration_reads_actual_duration(self) -> None:
         clip = _make_source_clip(self.tmp_path / "src" / "a.mp4", seconds=2)
@@ -217,7 +320,9 @@ class RenderFinalCliTest(unittest.TestCase):
 
         shutil.rmtree(self._tmp, ignore_errors=True)
 
-    def _run(self, *extra: str) -> subprocess.CompletedProcess:
+    def _run(
+        self, *extra: str, serial: str = "test", ep: str = "ep-01"
+    ) -> subprocess.CompletedProcess:
         env = dict(os.environ)
         env["SERIALS_ROOT"] = str(self.tmp_path / "serials")
         env["PYTHONPATH"] = str(self.repo_root)
@@ -225,8 +330,8 @@ class RenderFinalCliTest(unittest.TestCase):
             [
                 "python3",
                 str(self.repo_root / "scripts" / "render_final.py"),
-                "--serial", "test",
-                "--ep", "ep-01",
+                "--serial", serial,
+                "--ep", ep,
                 *extra,
             ],
             capture_output=True,
@@ -285,6 +390,22 @@ class RenderFinalCliTest(unittest.TestCase):
         proc = self._run()
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("draft.json", proc.stderr)
+
+    def test_path_traversal_in_serial_is_refused(self) -> None:
+        """`--serial ../../etc` must not escape SERIALS_ROOT."""
+        proc = self._run(serial="../../etc")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("invalid serial", proc.stderr.lower())
+
+    def test_path_traversal_in_ep_is_refused(self) -> None:
+        proc = self._run(ep="../../../etc/passwd")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("invalid episode id", proc.stderr.lower())
+
+    def test_absolute_path_in_ep_is_refused(self) -> None:
+        proc = self._run(ep="/etc")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("invalid episode id", proc.stderr.lower())
 
 
 # ---------------------------------------------------------------------------

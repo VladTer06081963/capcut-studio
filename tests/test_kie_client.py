@@ -1,4 +1,4 @@
-"""Unit tests for py/render (Kie.ai client + provider router).
+"""Unit tests for capcut/render (Kie.ai client + provider router).
 
 These tests do NOT require a real KIE_API_KEY — they mock the HTTP layer
 or operate on the routing logic only. The live smoke test is

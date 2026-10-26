@@ -15,7 +15,7 @@ import argparse
 import sys
 from pathlib import Path
 
-# Allow running scripts without `PYTHONPATH=.` — scripts/ sits next to py/
+# Allow running scripts without `PYTHONPATH=.` — scripts/ sits next to capcut/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from capcut.assemble import concat_exporter

@@ -293,7 +293,8 @@ published        episode-log.md запись добавлена
 - `published` → `remix` (новый ep с remixed spec, original immutable)
 
 **Idempotency:**
-- Episode id + sha256 of `spec.json` — повторный render без `--force` = no-op
+- Episode id + sha256 of `spec.json` — повторный render с тем же spec = no-op
+  (флага `--force` нет: `final.mp4` immutable, изменённый spec → remix)
 - Library clip sha256 must match reference — иначе matcher refuses
 
 ---
