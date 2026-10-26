@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from py.ingest import archive, coverr, mixkit
+from capcut.ingest import archive, coverr, mixkit
 
 
 SAMPLE_COVERR_RESPONSE = {

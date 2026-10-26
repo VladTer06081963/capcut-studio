@@ -17,12 +17,12 @@
 ## Status (обновлено 2026-10-09 22:15)
 
 **Готово (7 fixations, 79/79 tests OK):**
-- ✅ F1 foundation (`py/lib/config.py` + `py/lib/lifecycle.py`)
-- ✅ F2 YouTube stock ingest (`py/ingest/youtube.py`)
+- ✅ F1 foundation (`capcut/lib/config.py` + `capcut/lib/lifecycle.py`)
+- ✅ F2 YouTube stock ingest (`capcut/ingest/youtube.py`)
 - ✅ F3 Coverr + Mixkit + Archive (UA-friendly stock coverage)
-- ✅ F4 episode spec writer (`py/episode/spec_writer.py`, LLM через OpenRouter)
-- ✅ F5 library indexer (`py/index/embedder.py`, BLIP-2 + bge-large через LM Studio)
-- ✅ F6 matcher + Concat timeline exporter (`py/search/` + `py/assemble/`)
+- ✅ F4 episode spec writer (`capcut/episode/spec_writer.py`, LLM через OpenRouter)
+- ✅ F5 library indexer (`capcut/index/embedder.py`, BLIP-2 + bge-large через LM Studio)
+- ✅ F6 matcher + Concat timeline exporter (`capcut/search/` + `capcut/assemble/`)
 - ✅ F9 bible scene template (`bible/_TEMPLATE_scene.md`)
 
 **End-to-end pipeline работает на mock-данных:**
@@ -172,7 +172,7 @@ capcut-studio/
 │        ├─ spec.sha256            ← idempotency
 │        └─ final.mp4              ← IMMUTABLE
 │
-├─ py/
+├─ capcut/
 │  ├─ ingest/                      ← stock downloaders (youtube, coverr, mixkit, archive)
 │  ├─ episode/                     ← LLM brief → spec.json
 │  ├─ render/                      ← MiniMax + OpenRouter clients
@@ -393,7 +393,7 @@ published        episode-log.md запись добавлена
 ### Architecture (2026-10-13: kie-models refactor)
 
 Video generation is delegated to the Kie.ai unified API, accessed through
-`py/render/kie_client.py`. Kie exposes 200+ video / image / audio / LLM
+`capcut/render/kie_client.py`. Kie exposes 200+ video / image / audio / LLM
 models behind a single REST surface (credit-based; ~30% off direct pricing).
 `ProviderRouter` keeps a single client per backend; it does not maintain a
 hardcoded model catalog because the upstream set changes frequently.
@@ -414,7 +414,7 @@ hardcoded model catalog because the upstream set changes frequently.
                                     └──────────────┘
 ```
 
-### Module surface (`py/render/`)
+### Module surface (`capcut/render/`)
 
 | File | Role |
 |---|---|
@@ -463,7 +463,7 @@ defaults to `kie`. So both forms work as scene providers:
 CLI, episode-level provider, and bible `GENRE_DEFAULT` overrides are
 design ideas from the earlier PRD, not confirmed in the current router/
 callers. Text routing is separate and implemented in
-`py/episode/spec_writer.py`; it does not go through `ProviderRouter`.
+`capcut/episode/spec_writer.py`; it does not go through `ProviderRouter`.
 
 ### Fallback behavior
 
@@ -823,7 +823,7 @@ _(отдельные change'ы — см. `summary/tasks/001_*.md` → "След�
 
 | ID | Что | Приоритет |
 |---|---|---|
-| F1 | `py/lib/config.py` + `py/lib/lifecycle.py` | High |
+| F1 | `capcut/lib/config.py` + `capcut/lib/lifecycle.py` | High |
 | F2 | YouTube ingest end-to-end | High |
 | F3 | Coverr + Archive ingest | Medium |
 | F4 | Episode spec writer (LLM brief → spec.json) | High |
@@ -838,7 +838,7 @@ _(отдельные change'ы — см. `summary/tasks/001_*.md` → "След�
 | F13 | Subtitle pipeline (Whisper локально) | Future |
 | F14 | Web API для approve/revise (без MCP) | Future |
 | F15 | VPS deploy script (когда commercial пойдёт) | Future |
-| F-020 | kie.ai integration hardening (refactor под официальный `kie-models` skill) | Сделано 2026-10-13: `py/render/` переписан, 7 typed errors, schema-driven submit, 30/30 unit-тестов. Live smoke отложен до получения `KIE_API_KEY` через `scripts/setup_keys.sh`. |
+| F-020 | kie.ai integration hardening (refactor под официальный `kie-models` skill) | Сделано 2026-10-13: `capcut/render/` переписан, 7 typed errors, schema-driven submit, 30/30 unit-тестов. Live smoke отложен до получения `KIE_API_KEY` через `scripts/setup_keys.sh`. |
 
 ---
 

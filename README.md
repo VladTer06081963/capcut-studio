@@ -11,11 +11,24 @@ git clone <this-repo>
 cd capcut-studio
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r py/requirements.txt
+pip install -r capcut/requirements.txt
 cp .env.example .env   # fill API keys
 ```
 
 See `AGENTS.md` for the full pipeline, project layout, and invariants.
+
+### Running the tests
+
+```bash
+source .venv/bin/activate
+python -m pytest tests/ -q
+```
+
+Tests run from the repository root. The pipeline package was renamed
+`py/` → `capcut/` in fixation 022 precisely because the old name shadowed
+the `py` library pytest depends on — see
+`summary/audit/021_health_check_followups.md` (§5.1) and
+`summary/audit/022_rename_py_to_capcut.md`.
 
 ## Local model approval panel
 

@@ -1,6 +1,6 @@
 import asyncio
-from py.render.kie_client import KieClient
-from py.lib.config import load_dotenv
+from capcut.render.kie_client import KieClient
+from capcut.lib.config import load_dotenv
 import os
 
 async def main():

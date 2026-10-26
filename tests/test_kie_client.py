@@ -17,9 +17,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from py.render import ProviderRouter, ProviderSpec, parse_scene_provider  # noqa: E402
-from py.render.base import GenerationRequest, GenerationResult  # noqa: E402
-from py.render.kie_client import (  # noqa: E402
+from capcut.render import ProviderRouter, ProviderSpec, parse_scene_provider  # noqa: E402
+from capcut.render.base import GenerationRequest, GenerationResult  # noqa: E402
+from capcut.render.kie_client import (  # noqa: E402
     KieClient, KieError, KieAuthError, KieCreditError, KieNotFoundError,
     KieValidationError, KieRateLimitError, ModelInfo,
 )

@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "id": "ep-01-infiltration",
+  "show": "cyber-heist",
+  "title": "Infiltration",
+  "summary": "Kael infiltrates a corporate data center in Neo-Kowloon.",
+  "scenes": [
+    {
+      "n": 1,
+      "type": "establishing",
+      "query": "A sprawling, rain-slicked neo-punk city at night with neon signs and cyberpunk atmosphere.",
+      "preferred_source": "stock",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": null,
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": "They say corporate data is more valuable than human life.",
+      "tags": ["neo-punk", "city", "night"]
+    },
+    {
+      "n": 2,
+      "type": "action",
+      "query": "Hacker in a dark trench coat types furiously on a holographic keyboard in a dark alleyway.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "ai:kael:reference.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": ["hacker", "alley"]
+    },
+    {
+      "n": 3,
+      "type": "establishing",
+      "query": "Sterile, brightly lit server room with glowing blue data pillars.",
+      "preferred_source": "stock",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": null,
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": ["server room", "cyberpunk"]
+    },
+    {
+      "n": 4,
+      "type": "action",
+      "query": "Hacker sneaks past a patrolling security drone between server racks.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "ai:kael:reference.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": ["stealth", "drone"]
+    },
+    {
+      "n": 5,
+      "type": "action",
+      "query": "Hacker rips a glowing red AI core from the central console, alarms flash red.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "ai:kael:reference.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": "Tonight, we find out if they're right.",
+      "tags": ["core", "alarm"]
+    },
+    {
+      "n": 6,
+      "type": "action",
+      "query": "Hacker sprints down a hallway, dodging laser fire from automated turrets.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "ai:kael:reference.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": ["sprint", "lasers"]
+    },
+    {
+      "n": 7,
+      "type": "action",
+      "query": "Hacker dives out of a window into the rainy night.",
+      "preferred_source": "ai",
+      "track": "video",
+      "duration_sec": 5,
+      "character_ref": "ai:kael:reference.png",
+      "scene_ref": null,
+      "caption": null,
+      "voiceover": null,
+      "tags": ["dive", "window"]
+    }
+  ],
+  "provider": {
+    "text": "manual"
+  },
+  "model": "manual",
+  "created_at": "2026-10-10T19:35:00Z",
+  "brief_sha256": "manual",
+  "bible_sha256": "manual"
+}

@@ -12,20 +12,20 @@ git clone <this-repo>
 cd capcut-studio
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r py/requirements.txt
+pip install -r capcut/requirements.txt
 cp .env.example .env   # заполните API-ключи
 ```
 
-> ⚠️ **Footgun:** локальный `py/` (исходники pipeline) перекрывает
-> пакет `py`, который нужен pytest. Запускайте тесты **из другой
-> директории**:
+> ✅ **Shadowing устранён (fixation 022):** пакет pipeline переименован
+> из `py/` → `capcut/`, поэтому больше не перекрывает библиотеку `py`,
+> на которую опирается pytest. Тесты запускаются **из корня
+> репозитория**:
 > ```bash
-> cd /tmp
-> source ~/Projects/capcut-studio/.venv/bin/activate
-> python -m pytest /Users/vladteresena/Projects/capcut-studio/tests/ \
->   --rootdir=/Users/vladteresena/Projects/capcut-studio
+> source .venv/bin/activate
+> python -m pytest tests/ -q
 > ```
-> Подробности — `summary/audit/021_health_check_followups.md` (п. 5.1).
+> История проблемы — `summary/audit/021_health_check_followups.md` (п. 5.1),
+> фикс — `summary/audit/022_rename_py_to_capcut.md`.
 
 Полный пайплайн, раскладка и инварианты — в `AGENTS.md`.
 
@@ -98,13 +98,15 @@ MCP-сервер на **stdio** (не network), регистрирует 2 tool'
 
 R&D / подготовка, не продакшен. См. `AGENTS.md` → «Status».
 
-## Открытые follow-ups (fixation 021)
+## Follow-ups (fixation 021 → 022 → 023)
 
-- **5.1** shadowing `py/` ↔ `py` пакет → реальный фикс
-  (rename `py/` → `capcut/`) запланирован как fixation 022
-- **5.2** нет `final.mp4` writer → нужна OpenSpec proposal +
-  fixation 023 (`render_final` tool)
-- **5.3** cyber-heist ep-01 approved без final → блокирован 5.2
+- ✅ **5.1** shadowing `py/` ↔ `py` пакет — **закрыт в fixation 022**:
+  пакет переименован в `capcut/`, тесты идут из корня репозитория
+- ✅ **5.2** нет `final.mp4` writer — **закрыт в fixation 023**:
+  `scripts/render_final.py` + MCP-инструмент `render_final`
+- ✅ **5.3** cyber-heist ep-01 approved без final — **закрыт в fixation 023**:
+  `rendered/final.mp4` создан, состояние эпизода → `rendered`
 
-Детали — `summary/audit/021_health_check_followups.md` и
-`summary/tasks/021_health_check_followups.md`.
+Детали — `summary/audit/021_health_check_followups.md`,
+`summary/audit/022_rename_py_to_capcut.md`,
+`summary/audit/023_final_render_writer.md`.

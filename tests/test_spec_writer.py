@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from py.episode import spec_writer
+from capcut.episode import spec_writer
 
 
 SAMPLE_BIBLE = """# Show — stalker-reznik

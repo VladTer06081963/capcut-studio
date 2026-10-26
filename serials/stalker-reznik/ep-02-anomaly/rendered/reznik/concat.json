@@ -1,0 +1,72 @@
+{
+  "activeTimelineId": "TL1",
+  "clips": [],
+  "concat": "0.1.0",
+  "fonts": [],
+  "media": [],
+  "name": "reznik",
+  "timelines": [
+    {
+      "clips": [],
+      "id": "TL1",
+      "name": "Timeline 1",
+      "tracks": [
+        {
+          "id": "T1",
+          "muted": false,
+          "visible": true
+        },
+        {
+          "id": "T2",
+          "muted": false,
+          "visible": true
+        },
+        {
+          "id": "T3",
+          "muted": false,
+          "visible": true
+        },
+        {
+          "id": "T4",
+          "muted": false,
+          "visible": true
+        }
+      ],
+      "video": {
+        "height": 1080,
+        "rateDen": 1,
+        "rateNum": 30,
+        "width": 1920
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "id": "T1",
+      "muted": false,
+      "visible": true
+    },
+    {
+      "id": "T2",
+      "muted": false,
+      "visible": true
+    },
+    {
+      "id": "T3",
+      "muted": false,
+      "visible": true
+    },
+    {
+      "id": "T4",
+      "muted": false,
+      "visible": true
+    }
+  ],
+  "version": 1,
+  "video": {
+    "height": 1080,
+    "rateDen": 1,
+    "rateNum": 30,
+    "width": 1920
+  }
+}

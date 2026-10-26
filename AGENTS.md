@@ -13,7 +13,7 @@ episodes are assembled from the library, not freshly generated per scene.
 # Python (3.11+)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r py/requirements.txt
+pip install -r capcut/requirements.txt
 
 # Node sub-packages — no workspaces, install each
 (cd mcp-server && npm install)
@@ -32,10 +32,10 @@ cp .env.example .env   # add only keys required for the selected, approved workf
 | Nightly batch | Not implemented in the current tree (`cron/nightly.sh` is absent) | — |
 
 External services and models are configurable and may change during evaluation:
-- **Video generation:** current config default is `kie/veo-3-1` through `py/render/kie_client.py`; this is not a user-approved permanent production choice.
-- **Text/spec writing:** local LM Studio is tried for the default model in `py/episode/spec_writer.py`; OpenRouter is a conditional fallback/route. Check current code and environment rather than assuming a fixed model.
-- **Pixabay / Pexels / YouTube** — `py/ingest/` for stock library
-- **LM Studio** (local, WireGuard) — `py/index/` for BLIP-2 / CLIP embeddings
+- **Video generation:** current config default is `kie/veo-3-1` through `capcut/render/kie_client.py`; this is not a user-approved permanent production choice.
+- **Text/spec writing:** local LM Studio is tried for the default model in `capcut/episode/spec_writer.py`; OpenRouter is a conditional fallback/route. Check current code and environment rather than assuming a fixed model.
+- **Pixabay / Pexels / YouTube** — `capcut/ingest/` for stock library
+- **LM Studio** (local, WireGuard) — `capcut/index/` for BLIP-2 / CLIP embeddings
 - **Concat** (Mac Studio, MCP) — auto-compose timeline
 - **CapCut / DaVinci Resolve** (MacBook Pro, Thunderbolt) — manual polish
 
@@ -68,7 +68,7 @@ capcut-studio/
 │        ├─ draft.json           ← Concat draft
 │        ├─ preview.mp4
 │        └─ final.mp4             ← immutable from creation by project policy
-├─ py/
+├─ capcut/
 │  ├─ ingest/                    ← stock downloaders (pexels.py, pixabay.py, youtube.py)
 │  ├─ episode/                   ← script → spec.json (LLM)
 │  ├─ render/                    ← configurable provider clients and router
@@ -102,7 +102,7 @@ capcut-studio/
   not enforce `.approved`; no automated final-render CLI is confirmed. Do not
   claim the approval gate is technically enforced until that path exists and
   is tested.
-- **Idempotency (policy/helpers).** `py/lib/lifecycle.py` provides spec-hash
+- **Idempotency (policy/helpers).** `capcut/lib/lifecycle.py` provides spec-hash
   helpers. The current draft assembler is not a final renderer and does not
   provide the documented `--force`/no-op contract for `final.mp4`.
 - **Updates only via revise / remix.**
@@ -194,13 +194,13 @@ clips(id, path, sha256, source, model, caption, embedding BLOB, tags JSON)
 - **Subscription providers:** MiniMax image generation is covered by the user's subscription for this workflow. Do not query or impose provider usage limits, calculate a per-output price, or ask for a monetary/credit cap. Still obtain the user's approval of the model before generating; do not assume subscription coverage authorizes another model or unrelated task.
 - Local, free-tier, and trial routes may be used for prototypes when their selected model/provider is clear. Do not silently route a failed local request to a different paid provider.
 - Record provider/model, task, observed latency/quality, failures, and whether the result is prototype-only or approved for production in the relevant `summary/tasks/` or `summary/audit/` entry. Record price only when the user requests it or it is needed for a specific decision; never record credentials.
-- Current implementation snapshot: `py/lib/config.py` sets video default
+- Current implementation snapshot: `capcut/lib/config.py` sets video default
   `kie/veo-3-1`, text config value `qwen3-max`, and image config value
   `qwen-image`. These are runtime/config defaults, not approved provider
-  decisions. `py/episode/spec_writer.py` separately defaults to
+  decisions. `capcut/episode/spec_writer.py` separately defaults to
   `qwen2.5-coder-7b-instruct-mlx` and routes through local LM Studio/OpenRouter
   according to its call logic.
-- Video provider selection in `py/render/provider_router.py` accepts per-scene
+- Video provider selection in `capcut/render/provider_router.py` accepts per-scene
   provider/model overrides and environment defaults. Direct `minimax` backend
   is not implemented there. `DEFAULT_VIDEO_FALLBACK` exists in config, but
   `ProviderRouter.generate()` only uses the explicit fallback list passed to
@@ -257,7 +257,7 @@ over Thunderbolt.
 ┌─ Mac Studio (Apple Silicon) ──────────────────────────┐
 │                                                        │
 │   ~/Projects/capcut-studio/   ← everything lives here │
-│     ├─ py/                    ← Python pipeline        │
+│     ├─ capcut/                    ← Python pipeline        │
 │     ├─ library/               ← AI + stock assets      │
 │     ├─ serials/               ← episodes               │
 │     ├─ index.sqlite           ← embeddings + tags      │
@@ -349,9 +349,9 @@ Numbering shared with `summary/tasks/` and `summary/audit/` (TBD).
 
 ## Extension points
 
-- New stock source → `py/ingest/<name>.py` exporting `ingest_<name>(query, **opts) -> list[Clip]`.
-- New video provider → `py/render/<name>_client.py` implementing the
-  `VideoProvider` protocol from `py/render/base.py`.
-- New embedding model → parameterise `py/index/embedder.py`.
+- New stock source → `capcut/ingest/<name>.py` exporting `ingest_<name>(query, **opts) -> list[Clip]`.
+- New video provider → `capcut/render/<name>_client.py` implementing the
+  `VideoProvider` protocol from `capcut/render/base.py`.
+- New embedding model → parameterise `capcut/index/embedder.py`.
 - New Concat transport (e.g. HTTP vs stdio) → parameterise
-  `py/assemble/concat_exporter.py`.
+  `capcut/assemble/concat_exporter.py`.

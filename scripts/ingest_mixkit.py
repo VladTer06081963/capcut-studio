@@ -14,8 +14,8 @@ from pathlib import Path
 # Allow running scripts without `PYTHONPATH=.` — scripts/ sits next to py/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from py.ingest import mixkit
-from py.lib.config import STOCK_DIR
+from capcut.ingest import mixkit
+from capcut.lib.config import STOCK_DIR
 
 
 def main() -> int:

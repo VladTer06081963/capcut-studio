@@ -18,10 +18,10 @@ from pathlib import Path
 # Allow running scripts without `PYTHONPATH=.` — scripts/ sits next to py/
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from py.assemble import concat_exporter
-from py.episode.spec_writer import load_spec
-from py.lib.config import LIBRARY_INDEX, LIBRARY_ROOT, SERIALS_ROOT
-from py.search import matcher
+from capcut.assemble import concat_exporter
+from capcut.episode.spec_writer import load_spec
+from capcut.lib.config import LIBRARY_INDEX, LIBRARY_ROOT, SERIALS_ROOT
+from capcut.search import matcher
 
 
 def main() -> int:

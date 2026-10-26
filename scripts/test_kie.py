@@ -28,9 +28,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from py.lib import config  # noqa: E402
-from py.render import KieClient  # noqa: E402
-from py.render.base import GenerationRequest  # noqa: E402
+from capcut.lib import config  # noqa: E402
+from capcut.render import KieClient  # noqa: E402
+from capcut.render.base import GenerationRequest  # noqa: E402
 
 
 def main() -> int:
