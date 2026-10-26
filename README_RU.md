@@ -83,16 +83,33 @@ MiniMax M3; сверьте её **точный** ID в Pi перед первы�
 
 ## MCP-сервер
 
-MCP-сервер на **stdio** (не network), регистрирует 2 tool'а:
+MCP-сервер на **stdio** (не network), регистрирует 3 tool'а:
 
 - `assemble_episode` — собрать эпизод из библиотеки
 - `open_in_concat` — открыть черновик в Concat.app
+- `render_final` — отрендерить `rendered/final.mp4` для одобренного эпизода
 
 Запуск: `node mcp-server/index.js`. Smoke-тесты:
 `node mcp-server/test/concat_paths.test.js` (4/4 ✅).
 
-Подробности — `mcp-server/README.md` (если есть) и
-`summary/audit/021_health_check_followups.md`.
+## Финальный рендер
+
+```bash
+python scripts/render_final.py --serial <slug> --ep <id>
+```
+
+- **Approval gate:** отказывается без `.approved` в директории эпизода
+  (exit 1, файл не создаётся).
+- **Идемпотентность:** повторный прогон при неизменном `spec.json` —
+  no-op, файл не перезаписывается.
+- **Immutability:** `final.mp4` никогда не перезаписывается. Если
+  `spec.json` изменился после рендера, writer отказывает — нужен
+  **remix** (новая директория эпизода).
+- Пишет во временный файл и переименовывает на место только после
+  успешного encode — при сбое не остаётся частичного файла.
+
+Burn-in субтитров, микширование аудио и TTS — вне scope, это остаётся
+polish-шагами в Concat/CapCut.
 
 ## Статус
 

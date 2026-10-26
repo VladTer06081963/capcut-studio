@@ -31,6 +31,10 @@ serials/*/rendered/
 serials/*/matched.json
 .tmp/
 
+# Final-render temp artifacts (regenerated on every render)
+serials/**/rendered/capcut_final_*_concat.txt
+serials/**/rendered/.final.mp4.tmp.mp4
+
 # Logs
 data/logs/
 *.log

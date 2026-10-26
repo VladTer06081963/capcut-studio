@@ -80,6 +80,32 @@ class CapcutMcpServer {
               },
               required: ["serial", "ep"]
             }
+          },
+          {
+            name: "render_final",
+            description:
+              "Render rendered/final.mp4 for an approved episode. Enforces the approval gate (.approved sentinel), is idempotent on an unchanged spec, and never overwrites an existing final.mp4 (immutable — a changed spec needs a remix).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serial: {
+                  type: "string",
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  description: "Serial slug (e.g., cyber-heist)"
+                },
+                ep: {
+                  type: "string",
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  description: "Episode slug (e.g., ep-01-infiltration)"
+                },
+                reencode: {
+                  type: "boolean",
+                  description:
+                    "Force the re-encode path instead of stream copy (default: false)"
+                }
+              },
+              required: ["serial", "ep"]
+            }
           }
         ]
       };
@@ -155,6 +181,34 @@ class CapcutMcpServer {
         } catch (e) {
           return {
             content: [{ type: "text", text: `Error: ${e.message}` }],
+            isError: true
+          };
+        }
+      }
+
+      if (name === "render_final") {
+        try {
+          const { serial, ep } = getEpisodeArgs(args);
+          const argv = [
+            path.join(repoRoot, "scripts", "render_final.py"),
+            "--serial",
+            serial,
+            "--ep",
+            ep
+          ];
+          if (args?.reencode === true) {
+            argv.push("--reencode");
+          }
+          const { stdout, stderr } = await execFileAsync("python3", argv, {
+            cwd: repoRoot
+          });
+          return {
+            content: [{ type: "text", text: `Output:\n${stdout}\n${stderr}` }]
+          };
+        } catch (e) {
+          const details = [e.stdout, e.stderr].filter(Boolean).join("\n");
+          return {
+            content: [{ type: "text", text: `Error: ${e.message}${details ? `\n${details}` : ""}` }],
             isError: true
           };
         }

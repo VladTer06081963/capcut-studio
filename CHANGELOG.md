@@ -2,6 +2,87 @@
 
 ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
 
+## 2026-10-19T18:40Z — Fixation 022 + 023: rename py→capcut, final-render writer
+
+**Context**: два follow-up'а из fixation 021 плюс один незакрытый хвост
+(README_RU). Оба изменения — contract-level, поэтому сначала OpenSpec
+proposals, потом реализация.
+
+### Fixation 022 — rename `py/` → `capcut/`
+
+**Решения зафиксированы**:
+- Локальный `py/` перекрывал PyPI-пакет `py`, который нужен pytest 7.x
+  (`LEGACY_PATH = py.path.local`) → тесты нельзя было запустить из корня
+  репозитория. Переименование вместо `conftest.py`-хака или документирования
+  workaround'а: хак прячет footgun, документирование оставляет его.
+- `git mv py capcut` — история сохранена (24 файла).
+- 34 Python-файла: `from py.X` / `import py.X` → `from capcut.X`.
+- 6 живых доков переписаны (49 ссылок на пути): `AGENTS.md`, `README.md`,
+  `README_RU.md`, `.github/copilot-instructions{,.ru}.md`, `summary/PRD/PRD.md`.
+- Исторические `summary/audit/*` и `summary/tasks/*` **не тронуты** — они
+  фиксируют состояние дерева на момент написания; переписывание сделало бы
+  историю недостоверной.
+- `.pi/` harness добавлен в git отдельным коммитом (`c28c863`) — был
+  untracked, но на него ссылаются `AGENTS.md` и `README.md`.
+
+**Верификация**:
+- `python -m pytest tests/ -q` из корня репозитория → **129 passed**
+  (главный критерий — workaround больше не нужен)
+- из чужого CWD → 129 passed
+- 0 остаточных `from py.` / `import py.` по всему проекту
+- `python scripts/assemble_episode.py --help` работает
+- `import capcut.lib.config` резолвится
+- `node mcp-server/test/concat_paths.test.js` → 4/4
+
+### Fixation 023 — final-render writer с enforced approval gate
+
+**Решения зафиксированы**:
+- **Approval gate стал enforced.** `scripts/render_final.py` отказывается
+  рендерить без `.approved` (exit 1, файл не создаётся). Раньше gate был
+  только «policy» в `AGENTS.md` — технически не enforced.
+- **Идемпотентность enforced.** Второй прогон при неизменном `spec.json` —
+  no-op, файл не перезаписывается (mtime сохранён). Хелперы
+  `lifecycle.write_spec_sha()` / `is_idempotent_render()` существовали, но их
+  никто не вызывал.
+- **Immutability enforced.** `final.mp4` никогда не перезаписывается: при
+  hash mismatch writer отказывает. Флага `--force` нет намеренно — он
+  позволял бы нарушить инвариант, который гарантирует lifecycle. Выход —
+  remix (новая директория эпизода).
+- Рендер идёт во временный файл и переименовывается на место только после
+  успешного encode — при сбое не остаётся частичного `final.mp4`.
+- Два пути кодирования: stream copy (`-c copy`) с автоматическим fallback'ом
+  на re-encode (H.264/AAC + scale/pad), если ffmpeg отверг копирование.
+- Gate живёт в CLI-обёртке, а не в пакетном модуле:
+  `capcut/assemble/final_renderer.py` остаётся чистым примитивом
+  «timeline → mp4», пригодным для юнит-тестов без episode на диске.
+- `summary/PRD/PRD.md` Stage 5 переписан: там было «overwrite rendered/final.mp4
+  (это нормально — final.mp4 не immutable до публикации)», что
+  противоречило `AGENTS.md`. PRD теперь отражает реализованный инвариант.
+
+**Созданные файлы**:
+- `capcut/assemble/final_renderer.py` — пакетный модуль
+- `scripts/render_final.py` — CLI-обёртка
+- `tests/test_final_renderer.py` — 16 тестов
+- `summary/audit/022_rename_py_to_capcut.md` + `summary/tasks/022_*.md`
+- `summary/audit/023_final_render_writer.md` + `summary/tasks/023_*.md`
+
+**MCP-сервер**: 3 tool'а вместо 2 — добавлен `render_final`
+(`serial`, `ep`, `reencode`).
+
+**Верификация**:
+- `pytest tests/` → **145 passed** (было 129, +16 новых)
+- `node mcp-server/test/concat_paths.test.js` → 4/4
+- MCP `tools/list` по stdio → 3 tool'а, `render_final` зарегистрирован
+- **Живой рендер** `cyber-heist/ep-01-infiltration`:
+  `final.mp4` = 108 064 297 байт, 35.29 с, h264 1920×1080,
+  spec sha256 `07b9a1aa…0ead42`, состояние эпизода → `rendered`
+- Живой повторный прогон → no-op, mtime не изменился
+- Живая проверка gate на `stalker-reznik/ep-01-pilot` (без `.approved`) →
+  отказ, **exit code 1**, `final.mp4` не создан
+
+**Вне scope** (осознанно): burn-in субтитров, transitions, микширование
+аудио, TTS, `publish()` (episode-log), путь `preview.mp4`.
+
 ## 2026-10-19T17:15Z — Fixation 021: health-check followups (diagnostic)
 
 **Context**: пользователь попросил «проверь как работает capcut-studio».

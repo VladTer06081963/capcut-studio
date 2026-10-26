@@ -77,6 +77,36 @@ Read `.pi/README.md` first. The selected coding-agent model is MiniMax M3;
 verify its exact Pi model ID before sending the first prompt.
 Do not put credentials in project files or change global Pi configuration.
 
+## MCP server
+
+MCP server runs on **stdio** (not network) and registers 3 tools:
+
+- `assemble_episode` — match scenes and build the Concat draft
+- `open_in_concat` — open the draft in Concat.app
+- `render_final` — render `rendered/final.mp4` for an approved episode
+
+Run: `node mcp-server/index.js`. Smoke tests:
+`node mcp-server/test/concat_paths.test.js` (4/4 ✅).
+
+## Final render
+
+```bash
+python scripts/render_final.py --serial <slug> --ep <id>
+```
+
+- **Approval gate:** refuses unless `.approved` exists in the episode dir
+  (exit 1, no file written).
+- **Idempotent:** a second run on an unchanged `spec.json` is a no-op — the
+  file is not rewritten.
+- **Immutable:** `final.mp4` is never overwritten. If `spec.json` changed
+  after a render, the writer refuses — create a remix (new episode dir)
+  instead.
+- Writes to a temp path and renames into place only after a successful
+  encode, so a failed render leaves no partial file.
+
+Caption burn-in, audio mixing and voiceover TTS are out of scope — those
+stay Concat/CapCut polish steps.
+
 ## Status
 
 R&D / prep, not production. See `AGENTS.md` → "Status".

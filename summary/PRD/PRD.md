@@ -340,13 +340,15 @@ published        episode-log.md запись добавлена
          ↓
 ┌─ Stage 5: render + polish ────────────────────────┐
 │                                                    │
-│   Concat MCP exports final.mp4                     │
-│   (или CapCut manual export если нужен Pro-effect) │
-│   User opens final.mp4 в DaVinci на MBP            │
-│   frame-by-frame polish (color, chroma key, audio) │
-│   overwrite rendered/final.mp4                     │
-│   (это нормально — final.mp4 не immutable до       │
-│    публикации; после публикации immutable)         │
+│   scripts/render_final.py → rendered/final.mp4      │
+│   (approval gate: требует .approved; при отказе —  │
+│    exit 1, файл не создаётся)                      │
+│   Повторный прогон при неизменном spec.json —      │
+│   no-op (файл не перезаписывается)                 │
+│   final.mp4 IMMUTABLE с момента создания:          │
+│   при изменённом spec writer отказывает, нужен     │
+│   remix (новый episode dir)                         │
+│   (CapCut/DaVinci polish — на копии, не на final)  │
 │                                                    │
 └────────────────────────────────────────────────────┘
          ↓
