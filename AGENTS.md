@@ -260,7 +260,7 @@ over Thunderbolt.
 ┌─ Mac Studio (Apple Silicon) ──────────────────────────┐
 │                                                        │
 │   ~/Projects/capcut-studio/   ← everything lives here │
-│     ├─ capcut/                    ← Python pipeline        │
+│     ├─ capcut/                ← Python pipeline        │
 │     ├─ library/               ← AI + stock assets      │
 │     ├─ serials/               ← episodes               │
 │     ├─ index.sqlite           ← embeddings + tags      │
