@@ -30,7 +30,10 @@ architecture. Reuse it only after checking it against this approved workflow.
 
 - Explore stories, prompts, visual direction, and references before promotion
   to the production library.
-- Prefer local Draw Things for image experiments.
+- Prefer local ComfyUI for image experiments. Draw Things was removed from the
+  machine; ComfyUI is the local image backend. Keep experiments small — local
+  diffusion is slow on consumer hardware, so prototype at reduced resolution
+  and fewer steps, and promote only reviewed results.
 - Subscription-based MiniMax image generation is available under the user's
   subscription. Do not query subscription limits, calculate a per-image price,
   or require a spend/credit cap. The user may inspect current prices or plan

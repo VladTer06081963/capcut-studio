@@ -2,6 +2,58 @@
 
 ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
 
+## 2026-10-26T10:15Z — Fixation 025: Draw Things removed from the machine, local image backend moved to ComfyUI
+
+**Context**: Пользователь снёс приложение Draw Things с Mac Studio и
+перешёл на ComfyUI. Вопрос: «У нас здесь это как-то задействовано?»
+
+**В этом проекте Draw Things не был задействован.** Кода вызова — ноль;
+видео-пайплайн ходит через KIE / MiniMax / OpenRouter / LM Studio.
+Нашлись только: одна строка провайдера в `config/model_registry.json`,
+одна тестовая фикстура и одна строка в in-flight OpenSpec proposal.
+
+### Изменено
+
+- **`config/model_registry.json`** — провайдер `draw-things` → `comfyui`.
+  Старая метка обещала «ID модели зависит от загруженной модели» — это
+  было правдой для изменяемого состояния приложения Draw Things.
+  ComfyUI фиксирует модель в самом workflow (`UnetLoaderGGUF.unet_name`),
+  поэтому метка теперь называет бэкенд и порт. Добавлена запись в
+  `models`: `flux1-dev-Q4_K_S.gguf` (`task_types: ["image"]`) — без неё
+  дропдаун моделей в approval-UI для `comfyui` предлагал только ручной
+  ввод ID, хотя модель уже проверена живьём.
+- **`tests/test_model_approval.py`** — фикстура провайдера синхронизирована
+  с реестром. Строка провайдера не валидируется по реестру
+  (`create_approval()` проверяет только тип и длину), так что это
+  косметика листинга, а не поведения.
+- **`openspec/changes/hybrid-media-workflow/proposal.md`** — «Prefer local
+  Draw Things for image experiments» → ComfyUI. Proposal in-flight, поэтому
+  он всё ещё должен описывать существующий бэкенд. Формулировка
+  оставлена профильной, без машинно-специфичных деталей (порт, ~16 с/шаг) —
+  proposal описывает workflow, а не конфигурацию этой машины; конкретика
+  живёт в аудите.
+- **`summary/audit/025_draw-things-removed_comfyui_provider.md`** — аудит.
+
+### Проверка
+
+- `pytest tests/ -q` → **161/161 passed**
+- `curl http://127.0.0.1:8189/system_stats` → ComfyUI 0.42.5 жив на 8189
+- `UnetLoaderGGUF.unet_name` → `flux1-dev-Q4_K_S.gguf` — совпадает с меткой
+
+### Известное ограничение
+
+**В коде проекта нет ComfyUI-клиента.** Реестр теперь предлагает `comfyui`
+как выбираемого провайдера, но `capcut/render/comfyui_client.py` не
+существует: выбор фиксируется в approval-артефакте, но генерацию никуда
+не маршрутизирует. Подключение меняет контракт провайдеров
+(`ProviderRouter` + новый клиент) — по `AGENTS.md` это требует
+отдельного OpenSpec proposal.
+
+Полная картина миграции (Hermes skills, comic-studio, измеренное
+поведение FLUX в img2img) — в
+`~/Projects/comic-studio/summary/audit/029_draw-things-removed-comfyui-migration.md`.
+План удаления FreeVideo (50.6 ГБ) — в `…/030_freevideo-removal-plan.md`.
+
 ## 2026-10-19T19:30Z — Fixation 024: code-review fixes for the final-render writer
 
 **Context**: Kilo Code Review на PR #1 нашёл 7 WARNING + 21 SUGGESTION.

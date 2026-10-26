@@ -145,7 +145,7 @@ class ModelApprovalUiTests(unittest.TestCase):
         self.assertTrue(registry["models"])
 
         body = json.dumps({
-            "provider": "draw-things",
+            "provider": "comfyui",
             "model_id": "locally-selected-model",
             "task_scope": "Concept image for episode 1",
         }).encode()
