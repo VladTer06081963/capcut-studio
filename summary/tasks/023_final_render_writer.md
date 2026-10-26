@@ -25,7 +25,7 @@
 | 19 | `README.md` — секция «Final render», MCP 2→3 | ✅ Done |
 | 20 | `README_RU.md` — секция «Финальный рендер», MCP 2→3 | ✅ Done |
 | 21 | `summary/PRD/PRD.md` — Stage 5 переписан | ✅ Done |
-| 22 | `AGENTS.md` — gate/idempotency «policy» → «enforced» | ✅ Done (после подтверждения) |
+| 22 | `AGENTS.md` — gate/idempotency «policy» → «enforced» | ✅ Done (`8e32d26`, после подтверждения) |
 | 23 | Audit `summary/audit/023_final_render_writer.md` | ✅ |
 | 24 | Tasks (этот файл) | ✅ |
 | 25 | CHANGELOG.md | ✅ |

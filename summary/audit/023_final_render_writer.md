@@ -90,9 +90,11 @@ approval-gate refusal is legible to the caller.
   до публикации)", which contradicted `AGENTS.md`. The PRD now reflects
   the enforced immutability.
 - `AGENTS.md` — approval-gate and idempotency bullets changed from
-  "policy" to "enforced"; workflow diagram updated. **This edit required
-  a separate approval prompt** (protected instruction file) and was
-  applied after the user consented.
+  "policy" to "enforced"; immutability bullet now says the rule is
+  enforced by the writer; workflow diagram updated; the "Run" table gained
+  a `Final render` row. The first edit attempt was blocked (protected
+  instruction file, no consent); it was applied after the user explicitly
+  approved it, as commit `8e32d26`.
 
 ## 3. Статус (Verification)
 
