@@ -80,6 +80,38 @@ class CapcutMcpServer {
               },
               required: ["serial", "ep"]
             }
+          },
+          {
+            name: "render_final",
+            description:
+              "Render rendered/final.mp4 for an approved episode. Enforces the approval gate (.approved sentinel), is idempotent on an unchanged spec, and never overwrites an existing final.mp4 (immutable — a changed spec needs a remix).",
+            inputSchema: {
+              type: "object",
+              properties: {
+                serial: {
+                  type: "string",
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  description: "Serial slug (e.g., cyber-heist)"
+                },
+                ep: {
+                  type: "string",
+                  pattern: "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+                  description: "Episode slug (e.g., ep-01-infiltration)"
+                },
+                reencode: {
+                  type: "boolean",
+                  description:
+                    "Force the re-encode path instead of stream copy (default: false)"
+                },
+                resolution: {
+                  type: "string",
+                  pattern: "^[0-9]+x[0-9]+$",
+                  description:
+                    "Target resolution for the re-encode path, WxH (e.g. 1920x1080). Default: the timeline's project resolution."
+                }
+              },
+              required: ["serial", "ep"]
+            }
           }
         ]
       };
@@ -155,6 +187,77 @@ class CapcutMcpServer {
         } catch (e) {
           return {
             content: [{ type: "text", text: `Error: ${e.message}` }],
+            isError: true
+          };
+        }
+      }
+
+      if (name === "render_final") {
+        try {
+          const { serial, ep } = getEpisodeArgs(args);
+          const argv = [
+            path.join(repoRoot, "scripts", "render_final.py"),
+            "--serial",
+            serial,
+            "--ep",
+            ep
+          ];
+          if (args?.reencode !== undefined) {
+            if (typeof args.reencode !== "boolean") {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Error: reencode must be a boolean, got ${typeof args.reencode}`
+                  }
+                ],
+                isError: true
+              };
+            }
+            if (args.reencode) {
+              argv.push("--reencode");
+            }
+          }
+          if (args?.resolution !== undefined) {
+            if (typeof args.resolution !== "string") {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Error: resolution must be a string, got ${typeof args.resolution}`
+                  }
+                ],
+                isError: true
+              };
+            }
+            if (args.reencode !== true) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Error: resolution only applies with reencode: true`
+                  }
+                ],
+                isError: true
+              };
+            }
+            argv.push("--resolution", args.resolution);
+          }
+          const { stdout, stderr } = await execFileAsync("python3", argv, {
+            cwd: repoRoot,
+            // Python's worst case is two ffmpeg attempts at 3600s each,
+            // so this must exceed 2h or Node kills Python first and
+            // orphans the ffmpeg process.
+            timeout: 3 * 60 * 60 * 1000,
+            maxBuffer: 10 * 1024 * 1024
+          });
+          return {
+            content: [{ type: "text", text: `Output:\n${stdout}\n${stderr}` }]
+          };
+        } catch (e) {
+          const details = [e.stdout, e.stderr].filter(Boolean).join("\n");
+          return {
+            content: [{ type: "text", text: `Error: ${e.message}${details ? `\n${details}` : ""}` }],
             isError: true
           };
         }

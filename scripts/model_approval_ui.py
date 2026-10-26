@@ -15,7 +15,7 @@ REGISTRY_PATH = PROJECT_ROOT / "config" / "model_registry.json"
 FRONTEND_ROOT = PROJECT_ROOT / "frontend" / "model-approval"
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from py.lib.model_approval import ApprovalError, create_approval
+from capcut.lib.model_approval import ApprovalError, create_approval
 
 HOST = "127.0.0.1"
 PORT = 8765

@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "id": "ep-02-anomaly",
+  "show": "stalker-reznik",
+  "title": "The Whispering Woods",
+  "summary": "Reznik navigates the dangerous Red Forest at dawn.",
+  "provider": {},
+  "model": "gemini-3.6-flash",
+  "created_at": "2026-10-10T18:30:00Z",
+  "brief_sha256": "placeholder",
+  "bible_sha256": "placeholder",
+  "scenes": [
+    {
+      "n": 1,
+      "type": "establishing-wide",
+      "query": "A wide shot of a dense, dead forest at dawn. The trees are twisted, their branches bare and unnatural. A thick, faintly glowing fog rolls across the ground.",
+      "duration_sec": 5,
+      "scene_ref": "red-forest",
+      "character_ref": null,
+      "preferred_source": "ai",
+      "track": "video"
+    },
+    {
+      "n": 2,
+      "type": "action",
+      "query": "A weathered stalker in a tactical SEVA suit walks cautiously into the frame from the left. He moves slowly through the dead forest, his rifle lowered but gripped tightly.",
+      "duration_sec": 6,
+      "scene_ref": "red-forest",
+      "character_ref": "reznik",
+      "preferred_source": "ai",
+      "track": "video"
+    },
+    {
+      "n": 3,
+      "type": "insert",
+      "query": "Close-up. A rusty car door lying on the ground suddenly floats upward, defying gravity. It spins lazily in mid-air before crashing violently back down into the dirt.",
+      "duration_sec": 4,
+      "scene_ref": "red-forest",
+      "character_ref": null,
+      "preferred_source": "ai",
+      "track": "video"
+    },
+    {
+      "n": 4,
+      "type": "action",
+      "query": "The stalker stops abruptly. He pulls a small metal bolt from a pouch on his belt and tosses it forward into the glowing fog. The bolt curves sharply mid-air and shoots straight up into the sky.",
+      "duration_sec": 5,
+      "scene_ref": "red-forest",
+      "character_ref": "reznik",
+      "preferred_source": "ai",
+      "track": "video"
+    },
+    {
+      "n": 5,
+      "type": "dialogue-reaction",
+      "query": "Close-up of the stalker's face through his visor. His tired grey-green eyes study the invisible anomaly. He gives a small, knowing nod to himself.",
+      "duration_sec": 4,
+      "scene_ref": "red-forest",
+      "character_ref": "reznik",
+      "preferred_source": "ai",
+      "track": "video"
+    },
+    {
+      "n": 6,
+      "type": "voiceover",
+      "query": "The Zone doesn't hunt you. It just waits for you to step wrong.",
+      "duration_sec": 3,
+      "scene_ref": null,
+      "character_ref": "reznik",
+      "voiceover": "The Zone doesn't hunt you. It just waits for you to step wrong.",
+      "preferred_source": "ai",
+      "track": "audio"
+    },
+    {
+      "n": 7,
+      "type": "action",
+      "query": "The stalker adjusts his path, carefully stepping to the right to bypass the invisible trap. He walks deeper into the fog and fades into the twisted forest.",
+      "duration_sec": 5,
+      "scene_ref": "red-forest",
+      "character_ref": "reznik",
+      "preferred_source": "ai",
+      "track": "video"
+    }
+  ]
+}

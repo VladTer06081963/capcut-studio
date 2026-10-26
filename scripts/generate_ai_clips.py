@@ -18,10 +18,10 @@ from pathlib import Path
 # Allow running scripts without `PYTHONPATH=.`
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from py.episode.spec_writer import load_spec
-from py.lib.config import LIBRARY_ROOT, SERIALS_ROOT
-from py.render.base import GenerationRequest
-from py.render.kie_client import KieClient
+from capcut.episode.spec_writer import load_spec
+from capcut.lib.config import LIBRARY_ROOT, SERIALS_ROOT
+from capcut.render.base import GenerationRequest
+from capcut.render.kie_client import KieClient
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate AI clips via Kie.ai")

@@ -20,8 +20,8 @@ from pathlib import Path
 # Allow running scripts without `PYTHONPATH=.`
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from py.index import embedder
-from py.lib.config import LIBRARY_INDEX, LIBRARY_ROOT, LM_STUDIO_URL
+from capcut.index import embedder
+from capcut.lib.config import LIBRARY_INDEX, LIBRARY_ROOT, LM_STUDIO_URL
 
 
 def main() -> int:

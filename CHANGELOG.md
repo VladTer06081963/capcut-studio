@@ -2,6 +2,198 @@
 
 ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
 
+## 2026-10-19T19:30Z — Fixation 024: code-review fixes for the final-render writer
+
+**Context**: Kilo Code Review на PR #1 нашёл 7 WARNING + 21 SUGGESTION.
+Все 7 WARNING'ов проверены вручную против кода — **5 из них оказались
+реальными дефектами в коде 023**, и исправлены здесь. Ревью не было
+формальностью: без этих правок `final.mp4` создавался неправильной
+длительности, а относительные пути к клипам ломали рендер.
+
+### Исправлено в коде
+
+- **`duration_sec` игнорировался.** Concat-лист содержал только строки
+  `file`, поэтому каждый исходник проигрывался до конца (declared 35.0 с
+  vs actual 35.29 с). Теперь эмитится директива `duration` на клип **и**
+  обрезка выхода через `-t` — директива `duration` в concat demuxer
+  меняет только метаданные, медиа не режет. Живой рендер → 35.04 с.
+- **Относительные пути к клипам.** Existence check шёл против CWD, а
+  concat demuxer резолвит относительные имена против директории
+  list-файла. Теперь резолвятся против директории timeline и пишутся
+  абсолютными.
+- **Гонка временного файла.** Два параллельных рендера одного эпизода
+  делили `.final.mp4.tmp.mp4` — проигравший мог перезаписать
+  immutable-`final.mp4` победителя. Имя теперь содержит pid + uuid.
+- **Stream copy не валидировался.** `rc==0` принимался без проверки
+  (смешанные resolution/SAR/timebase дают «warnings-only» битый вывод,
+  который потом фиксируется как immutable). stderr первой попытки
+  терялся, если re-encode тоже падал. Теперь обе попытки в отчёте.
+- **Нет timeout у ffmpeg.** Зависшее чтение с внешнего HDD hang'ало
+  рендер (и MCP-вызов) навсегда. Добавлен `DEFAULT_TIMEOUT_SEC` +
+  `stdin=DEVNULL`.
+- **`--resolution` не валидировался.** `"1920"` давал пустую высоту и
+  невалидный фильтр `scale=1920:`. Теперь парсится и отклоняется.
+- **Re-encode не пинит `-pix_fmt`.** yuv422/444 исходники могли
+  зафиксировать неиграбельный immutable-финал. Теперь `yuv420p`.
+- **Первый video-трек без `src` перекрывал следующий.** Теперь
+  пропускается и берётся первый пригодный.
+- **CLI: нет slug-валидации.** `../` выходил за `SERIALS_ROOT`, и
+  lifecycle-записи следовали за ним. Теперь то же правило, что и на
+  MCP-границе.
+- **CLI: spec hash считался после рендера.** Правка spec в середине
+  рендера записывалась как «совпадающий» spec. Теперь до рендера.
+- **CLI: отсутствующий `spec.sha256`** (краш между `os.replace` и
+  `write_spec_sha`) сообщался как hash mismatch. Теперь — как
+  прерванный рендер, с подсказкой.
+- **CLI: `OSError`** из mkdir/unlink/stat вылетал трейсбеком. Ловится.
+- **MCP: не-boolean `reencode`** молча терялся — просили re-encode,
+  получали stream copy. Теперь явная ошибка. `--resolution` добавлен в
+  схему. Добавлены `timeout` и `maxBuffer` для минутного рендера.
+
+### Git-гигиена (регрессии от `git add -A`)
+
+- Symlink `library` → `/Volumes/MacStudioData/...` был закоммичен: он
+  dangling на любом другом clone и течёт локальный путь. Убран из
+  индекса; symlink на диске не тронут.
+- `.approved`-sentinels были закоммичены — каждый clone стартовал
+  с заранее одобренным эпизодом. Убраны из индекса; файлы на диске не
+  тронуты. `.gitignore` теперь их покрывает.
+- **`matched.json` тоже были закоммичены** — паттерн
+  `serials/*/matched.json` не матчит двух-уровневые пути
+  `serials/<show>/<ep>/matched.json`, поэтому `git add -A` их
+  возвращал. Убраны из индекса, паттерн исправлен на
+  `serials/**/matched.json` + `serials/**/rendered/`.
+
+### Документация
+
+- `tests/conftest.py` удалял настоящую библиотеку `py` из
+  `sys.modules` — leftover от rename, ломающий pytest-зависимость,
+  которую сам защищает. Теперь только обеспечивает импорт проекта.
+- Исправлены устаревшие `py/` в наших комментариях и docstring'ах
+  (ссылки на `comic-studio` оставлены как есть).
+- `summary/PRD/PRD.md` — убрано «повторный render без `--force` =
+  no-op»: флага `--force` нет.
+- Заголовки двух коммитов были переставлены (`1ae31d8` назывался
+  «chore: track .pi/», хотя содержал rename на 84 файла) — переписано.
+- Зачёт тестовых файлов: 9, а не 10.
+- Архивные OpenSpec-чеклисты приведены в соответствие с фактом.
+
+### Раунд 2 ревью (после переписывания истории)
+
+Второй прогон Kilo нашёл, что **один из фиксов раунда 1 был иллюзией**:
+перенос захвата хеша до рендера ничего не менял, потому что
+`lifecycle.write_spec_sha(ep)` не принимал хеш и пересчитывал его в
+момент записи — то есть **после** рендера. Зафиксированным оказывался
+spec, изменённый прямо во время рендера.
+
+Исправлено по-настоящему: `write_spec_sha(ep, sha)` теперь записывает
+переданный хеш, CLI передаёт pre-render значение. Два регрессионных
+теста.
+
+Также в раунде 2:
+- **`matched.json` оставались отслеживаемыми** — паттерн
+  `serials/*/matched.json` не матчит `serials/<show>/<ep>/matched.json`.
+  Исправлено на `serials/**/matched.json` + `serials/**/rendered/`.
+- **23 мёртвых хеша** в audit/tasks/CHANGELOG после переписывания
+  истории — обновлены на актуальные, проверены через `git log`.
+- **`--resolution` без `--reencode`** отклоняется (в argparse и в MCP):
+  раньше значение молча игнорировалось на stream-copy-пути, а потом
+  ломало auto-re-encode retry.
+- **MCP timeout 1 ч → 3 ч**: Python's worst case — две попытки ffmpeg по
+  3600 с, Node срабатывал первым, SIGTERM'ил только Python (осиротевшая
+  ffmpeg, пропущенный `finally`-cleanup) и отдавал вызывающему общий
+  timeout вместо чистого `FinalRenderError`.
+- **`AGENTS.md`** — диаграмма деплоя выровнена после rename (`e6c1434`).
+
+### Верификация
+
+- `pytest tests/` → **161 passed** (было 145, +16 новых тестов)
+- `pytest tests/` из чужого CWD → 161 passed
+- `node mcp-server/test/concat_paths.test.js` → 4/4
+- Живой ре-рендер `cyber-heist/ep-01-infiltration` → 35.04 с,
+  h264 1920×1080, temp-файлов не осталось, 2-й прогон — no-op
+
+## 2026-10-19T18:40Z — Fixation 022 + 023: rename py→capcut, final-render writer
+
+**Context**: два follow-up'а из fixation 021 плюс один незакрытый хвост
+(README_RU). Оба изменения — contract-level, поэтому сначала OpenSpec
+proposals, потом реализация.
+
+### Fixation 022 — rename `py/` → `capcut/`
+
+**Решения зафиксированы**:
+- Локальный `py/` перекрывал PyPI-пакет `py`, который нужен pytest 7.x
+  (`LEGACY_PATH = py.path.local`) → тесты нельзя было запустить из корня
+  репозитория. Переименование вместо `conftest.py`-хака или документирования
+  workaround'а: хак прячет footgun, документирование оставляет его.
+- `git mv py capcut` — история сохранена (24 файла).
+- 34 Python-файла: `from py.X` / `import py.X` → `from capcut.X`.
+- 6 живых доков переписаны (49 ссылок на пути): `AGENTS.md`, `README.md`,
+  `README_RU.md`, `.github/copilot-instructions{,.ru}.md`, `summary/PRD/PRD.md`.
+- Исторические `summary/audit/*` и `summary/tasks/*` **не тронуты** — они
+  фиксируют состояние дерева на момент написания; переписывание сделало бы
+  историю недостоверной.
+- `.pi/` harness добавлен в git отдельным коммитом (`acda9f4`) — был
+  untracked, но на него ссылаются `AGENTS.md` и `README.md`.
+
+**Верификация**:
+- `python -m pytest tests/ -q` из корня репозитория → **129 passed**
+  (главный критерий — workaround больше не нужен)
+- из чужого CWD → 129 passed
+- 0 остаточных `from py.` / `import py.` по всему проекту
+- `python scripts/assemble_episode.py --help` работает
+- `import capcut.lib.config` резолвится
+- `node mcp-server/test/concat_paths.test.js` → 4/4
+
+### Fixation 023 — final-render writer с enforced approval gate
+
+**Решения зафиксированы**:
+- **Approval gate стал enforced.** `scripts/render_final.py` отказывается
+  рендерить без `.approved` (exit 1, файл не создаётся). Раньше gate был
+  только «policy» в `AGENTS.md` — технически не enforced.
+- **Идемпотентность enforced.** Второй прогон при неизменном `spec.json` —
+  no-op, файл не перезаписывается (mtime сохранён). Хелперы
+  `lifecycle.write_spec_sha()` / `is_idempotent_render()` существовали, но их
+  никто не вызывал.
+- **Immutability enforced.** `final.mp4` никогда не перезаписывается: при
+  hash mismatch writer отказывает. Флага `--force` нет намеренно — он
+  позволял бы нарушить инвариант, который гарантирует lifecycle. Выход —
+  remix (новая директория эпизода).
+- Рендер идёт во временный файл и переименовывается на место только после
+  успешного encode — при сбое не остаётся частичного `final.mp4`.
+- Два пути кодирования: stream copy (`-c copy`) с автоматическим fallback'ом
+  на re-encode (H.264/AAC + scale/pad), если ffmpeg отверг копирование.
+- Gate живёт в CLI-обёртке, а не в пакетном модуле:
+  `capcut/assemble/final_renderer.py` остаётся чистым примитивом
+  «timeline → mp4», пригодным для юнит-тестов без episode на диске.
+- `summary/PRD/PRD.md` Stage 5 переписан: там было «overwrite rendered/final.mp4
+  (это нормально — final.mp4 не immutable до публикации)», что
+  противоречило `AGENTS.md`. PRD теперь отражает реализованный инвариант.
+
+**Созданные файлы**:
+- `capcut/assemble/final_renderer.py` — пакетный модуль
+- `scripts/render_final.py` — CLI-обёртка
+- `tests/test_final_renderer.py` — 16 тестов
+- `summary/audit/022_rename_py_to_capcut.md` + `summary/tasks/022_*.md`
+- `summary/audit/023_final_render_writer.md` + `summary/tasks/023_*.md`
+
+**MCP-сервер**: 3 tool'а вместо 2 — добавлен `render_final`
+(`serial`, `ep`, `reencode`).
+
+**Верификация**:
+- `pytest tests/` → **145 passed** (было 129, +16 новых)
+- `node mcp-server/test/concat_paths.test.js` → 4/4
+- MCP `tools/list` по stdio → 3 tool'а, `render_final` зарегистрирован
+- **Живой рендер** `cyber-heist/ep-01-infiltration`:
+  `final.mp4` = 108 064 297 байт, 35.29 с, h264 1920×1080,
+  spec sha256 `07b9a1aa…0ead42`, состояние эпизода → `rendered`
+- Живой повторный прогон → no-op, mtime не изменился
+- Живая проверка gate на `stalker-reznik/ep-01-pilot` (без `.approved`) →
+  отказ, **exit code 1**, `final.mp4` не создан
+
+**Вне scope** (осознанно): burn-in субтитров, transitions, микширование
+аудио, TTS, `publish()` (episode-log), путь `preview.mp4`.
+
 ## 2026-10-19T17:15Z — Fixation 021: health-check followups (diagnostic)
 
 **Context**: пользователь попросил «проверь как работает capcut-studio».

@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 
-from py.lib.model_approval import ApprovalError, create_approval, claim_approval
+from capcut.lib.model_approval import ApprovalError, create_approval, claim_approval
 
 
 class ModelApprovalTests(unittest.TestCase):

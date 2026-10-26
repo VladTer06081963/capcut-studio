@@ -31,7 +31,7 @@ Small, isolated fixes that do not change a contract need no OpenSpec proposal; u
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r py/requirements.txt
+pip install -r capcut/requirements.txt
 cp .env.example .env
 ```
 
@@ -61,10 +61,10 @@ python -m unittest tests.test_config
 
 ## Architecture
 
-- `py/lib/config.py` loads environment configuration and resolves library/serial paths and provider defaults. `py/lib/lifecycle.py` models episode state through on-disk files.
-- `py/episode/spec_writer.py` turns an episode brief and show bible material into validated `spec.json`.
-- `py/index/embedder.py` indexes clips and provides text-to-asset search over the shared SQLite library index; `py/search/matcher.py` matches scene descriptions and persists `matched.json`.
-- `py/assemble/concat_exporter.py` converts a spec and its matches into a Concat timeline/draft. `mcp-server/` exposes workflow actions to MCP clients, and `scripts/` contains CLI entrypoints for pipeline operations.
+- `capcut/lib/config.py` loads environment configuration and resolves library/serial paths and provider defaults. `capcut/lib/lifecycle.py` models episode state through on-disk files.
+- `capcut/episode/spec_writer.py` turns an episode brief and show bible material into validated `spec.json`.
+- `capcut/index/embedder.py` indexes clips and provides text-to-asset search over the shared SQLite library index; `capcut/search/matcher.py` matches scene descriptions and persists `matched.json`.
+- `capcut/assemble/concat_exporter.py` converts a spec and its matches into a Concat timeline/draft. `mcp-server/` exposes workflow actions to MCP clients, and `scripts/` contains CLI entrypoints for pipeline operations.
 - `bible/` holds canonical creative references; `library/` holds reusable source assets and their metadata; `serials/` holds episode inputs, intermediate artifacts, and renders.
 
 The end-to-end flow is brief + bible → validated spec → matched library assets → editable draft/preview → human review and polish → final render. Generation can add assets to the library, but episode assembly should prefer existing indexed assets.

@@ -20,7 +20,7 @@ class ConfigTest(unittest.TestCase):
             # Re-import to pick up clean state
             import importlib
 
-            from py.lib import config
+            from capcut.lib import config
 
             importlib.reload(config)
             self.assertEqual(config.DEFAULT_VIDEO_PROVIDER, "kie/veo-3-1")
@@ -44,7 +44,7 @@ class ConfigTest(unittest.TestCase):
         ), _no_dotenv():
             import importlib
 
-            from py.lib import config
+            from capcut.lib import config
 
             importlib.reload(config)
             self.assertTrue(config.has_minimax())
@@ -53,7 +53,7 @@ class ConfigTest(unittest.TestCase):
             self.assertTrue(config.has_coverr())
 
     def test_paths_resolve_under_project_root(self) -> None:
-        from py.lib import config
+        from capcut.lib import config
 
         # LIBRARY_ROOT should be inside PROJECT_ROOT unless explicitly overridden
         with patch.dict(os.environ, {}, clear=True), _no_dotenv():
@@ -66,7 +66,7 @@ class ConfigTest(unittest.TestCase):
             )
 
     def test_ensure_dirs_creates_tree(self) -> None:
-        from py.lib import config
+        from capcut.lib import config
 
         with patch.dict(os.environ, {"LIBRARY_ROOT": "/tmp/_capcut_test_lib"}, clear=True), _no_dotenv():
             import importlib

@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from py.lib import lifecycle
+from capcut.lib import lifecycle
 
 
 class LifecycleTest(unittest.TestCase):

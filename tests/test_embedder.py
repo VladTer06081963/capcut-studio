@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from py.index import embedder
+from capcut.index import embedder
 
 
 SAMPLE_CAPTION_RESPONSE = {

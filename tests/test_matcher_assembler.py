@@ -8,10 +8,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from py.assemble import concat_exporter
-from py.episode.spec_writer import EpisodeSpec, SceneSpec, SCHEMA_VERSION
-from py.index import embedder
-from py.search import matcher
+from capcut.assemble import concat_exporter
+from capcut.episode.spec_writer import EpisodeSpec, SceneSpec, SCHEMA_VERSION
+from capcut.index import embedder
+from capcut.search import matcher
 
 
 # ---------------------------------------------------------------------------
