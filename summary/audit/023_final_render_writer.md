@@ -128,6 +128,12 @@ approval-gate refusal is legible to the caller.
 | `pytest tests/` | 129 | **145** | ✅ 145 passed |
 | `node mcp-server/test/concat_paths.test.js` | 4 | 4 | ✅ 4 passed |
 
+> **Обновлено fixation 024:** 145 → **157** (+12 тестов на исправленные
+> дефекты: trim по `duration_sec`, относительные `src`, экранирование
+> кавычек, невалидный resolution, `pix_fmt`, уникальность temp-путей,
+> path traversal). Живой ре-рендер → 35.04 с (было 35.29 с — trim
+> заработал). Подробности — `summary/audit/024_code_review_fixes.md`.
+
 ### Live run on the stuck episode
 
 ```

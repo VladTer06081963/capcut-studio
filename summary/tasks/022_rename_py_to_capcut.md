@@ -57,7 +57,7 @@ py/                    →  capcut/
 `ingest_{archive,coverr,mixkit,youtube}`, `model_approval_ui`,
 `spec_from_brief`, `test_kie`
 
-**Тесты (10):** `test_config`, `test_embedder`, `test_kie_client`,
+**Тесты (9):** `test_config`, `test_embedder`, `test_kie_client`,
 `test_lifecycle`, `test_matcher_assembler`, `test_model_approval`,
 `test_secondary_ingest`, `test_spec_writer`, `test_youtube_ingest`
 

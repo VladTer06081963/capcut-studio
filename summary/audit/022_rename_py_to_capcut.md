@@ -29,7 +29,7 @@ README as a footgun. Every fresh agent and CI runner had to rediscover it.
     `capcut/index/`, `capcut/ingest/`, `capcut/render/`,
     `capcut/search/`)
   - 10 `scripts/*.py` entry points
-  - 10 `tests/*.py`
+  - 9 `tests/*.py`
   - 3 stray root-level `test_kie*.py` scripts
 - ✅ **6 live docs** rewritten (49 path references):
   - `AGENTS.md` — project layout tree, install command, extension points,
@@ -86,13 +86,23 @@ README as a footgun. Every fresh agent and CI runner had to rediscover it.
 
 ## 6. Что зафиксировано в git (What landed)
 
-- `85b0a95` — `refactor!: rename py/ package to capcut/`
-- `c28c863` — `chore: track .pi/ project harness (Pi agent skills)`
-- `bfa5ab7` — `docs(openspec): proposals for py->capcut rename and
-  final-render writer`
-- `9659e16` — `docs: add Russian README mirror (README_RU.md)`
+Коммиты в этом PR (проверено `git log --format=%s` + `git show --stat`):
 
-90 files changed, +1940 / −133 (includes the `.pi/` tracking commit).
+| Hash | Заголовок | Содержимое |
+|---|---|---|
+| `9659e16` | `docs: add Russian README mirror (README_RU.md)` | 1 файл |
+| `bfa5ab7` | `docs(openspec): proposals for py->capcut rename and final-render writer` | 4 файла (2 proposal'а) |
+| `c28c863` | `refactor!: rename py/ package to capcut/` | **84 файла** — rename + переписанные импорты в 34 Python-файлах + 6 живых доков |
+| `85b0a95` | `chore: track .pi/ project harness (Pi agent skills)` | **6 файлов** — только `.pi/` harness |
+
+> ⚠️ **Замечание по истории.** В момент коммита заголовки этих двух
+> коммитов были переставлены: `c28c863` назывался «chore: track .pi/»,
+> а `85b0a95` — «refactor!: rename py/», хотя содержимое было обратным.
+> Исправлено принудительным push'ом ветки с переписанной историей.
+
+Содержимое rename-коммита: 24 файла перемещены (`git mv`), 34 Python-файла
+переписаны, 6 живых доков обновлены, 49 замен путей. `.pi/` harness добавлен
+отдельным коммитом, а не смешан с rename-диффом.
 
 ## 7. OpenSpec / PR
 
