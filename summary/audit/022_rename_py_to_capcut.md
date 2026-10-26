@@ -81,7 +81,7 @@ README as a footgun. Every fresh agent and CI runner had to rediscover it.
   `summary/tasks/` entries describe what the tree looked like when they
   were written. Rewriting them would make the history inaccurate.
 - **Tracked `.pi/` in the same branch** as a separate commit
-  (`1ae31d8`) rather than mixing it into the rename diff — the harness
+  (`acda9f4`) rather than mixing it into the rename diff — the harness
   files were untracked but are referenced by `AGENTS.md` and `README.md`.
 
 ## 6. Что зафиксировано в git (What landed)
@@ -96,9 +96,11 @@ README as a footgun. Every fresh agent and CI runner had to rediscover it.
 | `acda9f4` | `chore: track .pi/ project harness (Pi agent skills)` | **6 файлов** — только `.pi/` harness |
 
 > ⚠️ **Замечание по истории.** В момент коммита заголовки этих двух
-> коммитов были переставлены: `1ae31d8` назывался «chore: track .pi/»,
-> а `acda9f4` — «refactor!: rename py/», хотя содержимое было обратным.
-> Исправлено принудительным push'ом ветки с переписанной историей.
+> коммитов были переставлены: коммит с rename на 84 файла назывался
+> «chore: track .pi/ project harness», а коммит с 6 `.pi/`-файлами —
+> «refactor!: rename py/ package to capcut/». Исправлено
+> принудительным push'ом ветки с переписанной историей: теперь rename —
+> это `1ae31d8` (84 файла), а `.pi/` — `acda9f4` (6 файлов).
 
 Содержимое rename-коммита: 24 файла перемещены (`git mv`), 34 Python-файла
 переписаны, 6 живых доков обновлены, 49 замен путей. `.pi/` harness добавлен

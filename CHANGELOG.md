@@ -73,8 +73,10 @@ ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
   (ссылки на `comic-studio` оставлены как есть).
 - `summary/PRD/PRD.md` — убрано «повторный render без `--force` =
   no-op»: флага `--force` нет.
-- Заголовки двух коммитов были переставлены (`1ae31d8` назывался
-  «chore: track .pi/», хотя содержал rename на 84 файла) — переписано.
+- Заголовки двух коммитов были переставлены (коммит с rename на 84 файла
+  назывался «chore: track .pi/», а коммит с 6 `.pi/`-файлами —
+  «refactor!: rename py/») — переписано. Теперь rename — `1ae31d8`,
+  `.pi/` — `acda9f4`.
 - Зачёт тестовых файлов: 9, а не 10.
 - Архивные OpenSpec-чеклисты приведены в соответствие с фактом.
 

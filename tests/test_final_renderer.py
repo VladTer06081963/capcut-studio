@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -424,16 +425,58 @@ class RenderFinalCliTest(unittest.TestCase):
 
     def test_recorded_sha_is_the_pre_render_one(self) -> None:
         """The recorded spec.sha256 must describe the spec that was
-        rendered -- not whatever landed on disk afterwards."""
-        (self.ep_dir / ".approved").touch()
-        self.assertEqual(self._run().returncode, 0)
-        sha_file = self.ep_dir / "rendered" / "spec.sha256"
-        recorded = sha_file.read_text().strip()
+        rendered -- not whatever landed on disk afterwards.
 
-        expected = lifecycle.sha256_spec(
+        The CLI runs as a separate process, so the mutation is injected
+        through a fake `ffmpeg` on PATH: the shim rewrites spec.json
+        (simulating an edit landing while the render is running) and
+        then exits successfully. The test therefore fails if
+        write_spec_sha() re-computes the hash at write time instead of
+        recording the pre-render one.
+        """
+        (self.ep_dir / ".approved").touch()
+        spec_path = self.ep_dir / "spec.json"
+        original = spec_path.read_text()
+
+        env = dict(os.environ)
+        env["SERIALS_ROOT"] = str(self.tmp_path / "serials")
+        env["PYTHONPATH"] = str(self.repo_root)
+        fake_bin = self.tmp_path / "fakebin"
+        fake_bin.mkdir(exist_ok=True)
+        fake_ffmpeg = fake_bin / "ffmpeg"
+        fake_ffmpeg.write_text(
+            "#!/bin/sh\n"
+            f"printf '{{\"scenes\": [\"edited mid-render\"]}}' > '{spec_path}'\n"
+            "printf 'fake' > \"${@: -1}\"\n"
+            "exit 0\n"
+        )
+        fake_ffmpeg.chmod(0o755)
+        env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+
+        proc = subprocess.run(
+            [
+                "python3",
+                str(self.repo_root / "scripts" / "render_final.py"),
+                "--serial", "test",
+                "--ep", "ep-01",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(self.repo_root),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+        recorded = (self.ep_dir / "rendered" / "spec.sha256").read_text().strip()
+        post_render = lifecycle.sha256_spec(
             lifecycle.Episode(show="test", ep_id="ep-01", path=self.ep_dir)
         )
-        self.assertEqual(recorded, expected)
+        # The recorded hash must NOT be the post-render hash.
+        self.assertNotEqual(recorded, post_render)
+        self.assertEqual(
+            recorded,
+            hashlib.sha256(original.encode("utf-8")).hexdigest(),
+        )
 
 
 # ---------------------------------------------------------------------------
