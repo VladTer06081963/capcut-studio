@@ -29,6 +29,7 @@ cp .env.example .env   # add only keys required for the selected, approved workf
 | Ingest stock | `python scripts/ingest_youtube.py --help` (also `ingest_coverr.py`, `ingest_mixkit.py`, `ingest_archive.py`) | — |
 | Index library | `python scripts/index_library.py` | LM Studio at `$LM_STUDIO_URL` |
 | Assemble episode | `python scripts/assemble_episode.py --serial <slug> --ep <id>` | — |
+| Final render | `python scripts/render_final.py --serial <slug> --ep <id>` | — |
 | Nightly batch | Not implemented in the current tree (`cron/nightly.sh` is absent) | — |
 
 External services and models are configurable and may change during evaluation:
@@ -97,21 +98,23 @@ capcut-studio/
 - **Lifecycle as files on disk.** Episodes live in `serials/<show>/<ep-id>/`
   with sentinel files (`.draft`, `.approved`) and `rendered/`. State is never
   in memory.
-- **Approval gate (policy).** Do not publish a final render without review and
-  approval. The current `scripts/assemble_episode.py` builds a draft and does
-  not enforce `.approved`; no automated final-render CLI is confirmed. Do not
-  claim the approval gate is technically enforced until that path exists and
-  is tested.
-- **Idempotency (policy/helpers).** `capcut/lib/lifecycle.py` provides spec-hash
-  helpers. The current draft assembler is not a final renderer and does not
-  provide the documented `--force`/no-op contract for `final.mp4`.
+- **Approval gate (enforced).** `scripts/render_final.py` refuses to render
+  unless `.approved` exists in the episode dir, and exits non-zero with an
+  explicit message. `scripts/assemble_episode.py` still builds the draft
+  without a gate — that step is pre-approval by design.
+- **Idempotency (enforced).** `capcut/lib/lifecycle.py` provides the spec-hash
+  helpers; `scripts/render_final.py` uses them. A second run on an unchanged
+  `spec.json` is a no-op (the file is not rewritten). If `spec.json` changed
+  after a render, the writer refuses — `final.mp4` is immutable, so the
+  correct path is a remix, not an overwrite. There is no `--force` flag.
 - **Updates only via revise / remix.**
   - `draft` / `approved` → `revise` (regenerate spec.json from brief, atomic approval revoke)
   - `rendered` → `remix` (creates new episode with `remix_of`)
 - **`rendered/final.mp4` is immutable.** Never edit, delete, or re-render.
   New edits produce a remix.
-  This is the project policy from the moment the file is created; the current
-  tree has no verified final-render writer enforcing this rule yet.
+  Enforced by `scripts/render_final.py`: it writes to a temp path and renames
+  into place only after a successful encode, and refuses to touch an existing
+  `final.mp4`.
 - **`library/index.sqlite` is shared.** All episodes read it. Index updates
   must be additive (new rows); deletes only via explicit GC.
 - **Source attribution mandatory.** Every asset in `library/` carries
@@ -136,7 +139,7 @@ matched.json
     ↓ Concat MCP
 draft.json + preview.mp4
     ↓ human review + .approved sentinel
-manual render/export workflow (no final-render CLI confirmed)
+scripts/render_final.py  (approval gate enforced; idempotent; immutable)
 rendered/final.mp4
     ↓ append to episode-log.md
 next episode
