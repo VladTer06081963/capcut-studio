@@ -17,7 +17,7 @@
 | 11 | `scripts/assemble_episode.py --help` | ✅ работает |
 | 12 | `import capcut.lib.config` | ✅ резолвится |
 | 13 | `node mcp-server/test/concat_paths.test.js` | ✅ 4/4 |
-| 14 | `.pi/` добавлен в git отдельным коммитом | ✅ `1ae31d8` |
+| 14 | `.pi/` добавлен в git отдельным коммитом | ✅ `acda9f4` |
 | 15 | OpenSpec proposal + tasks | ✅ |
 | 16 | OpenSpec архивирован | ✅ `archive/2026-10-19-rename-py-to-capcut/` |
 | 17 | Audit `summary/audit/022_rename_py_to_capcut.md` | ✅ |

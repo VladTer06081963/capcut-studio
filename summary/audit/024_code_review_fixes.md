@@ -241,13 +241,13 @@ Also fixed in round 2:
 ## 6. Решения (Decisions)
 
 - **Rewrite the history rather than document the mistake.** The two
-  commit titles were swapped: `1ae31d8` was titled "chore: track .pi/"
-  but contained the 84-file rename, and `acda9f4` was titled
-  "refactor!: rename py/" but contained only the 6 `.pi/` files. The
-  BREAKING CHANGE message was therefore attached to the wrong diff. A
-  rebase swaps the two commits and gives each the correct title; since
-  the branch is unmerged, this needs a force-push and touches no shared
-  history.
+  commit titles were swapped: the commit carrying the 84-file rename was
+  titled "chore: track .pi/" and the commit carrying the 6 `.pi/` files
+  was titled "refactor!: rename py/". The BREAKING CHANGE message was
+  therefore attached to the wrong diff. The rewrite gave each commit the
+  correct title: the rename is now `1ae31d8` (84 files) and the harness
+  is `acda9f4` (6 files). Since the branch was unmerged, this needed a
+  force-push and touched no shared history.
 - **Fix the code, don't just document the bugs.** The `duration_sec`
   defect in particular was a silent wrong-output bug, and documenting it
   in the audit would have left the pipeline producing wrong-length
