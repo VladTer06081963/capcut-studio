@@ -94,7 +94,7 @@ approval-gate refusal is legible to the caller.
   enforced by the writer; workflow diagram updated; the "Run" table gained
   a `Final render` row. The first edit attempt was blocked (protected
   instruction file, no consent); it was applied after the user explicitly
-  approved it, as commit `8e32d26`.
+  approved it, as commit `794d811`.
 
 ## 3. Статус (Verification)
 

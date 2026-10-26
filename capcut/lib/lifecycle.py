@@ -209,11 +209,17 @@ def is_idempotent_render(ep: Episode) -> bool:
         return False
 
 
-def write_spec_sha(ep: Episode) -> None:
-    """Write spec.sha256 next to final.mp4 for next-render idempotency."""
+def write_spec_sha(ep: Episode, sha: str | None = None) -> None:
+    """Write spec.sha256 next to final.mp4 for next-render idempotency.
+
+    `sha` should be the hash of the spec that was actually rendered.
+    Pass it explicitly when the render took a non-trivial amount of
+    time: recomputing here (the default) hashes whatever is on disk
+    *now*, which is wrong if spec.json changed during the render.
+    """
     rendered = ep.path / "rendered"
     rendered.mkdir(exist_ok=True)
-    (rendered / "spec.sha256").write_text(sha256_spec(ep))
+    (rendered / "spec.sha256").write_text(sha if sha is not None else sha256_spec(ep))
 
 
 # ---------------------------------------------------------------------------

@@ -407,6 +407,34 @@ class RenderFinalCliTest(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("invalid episode id", proc.stderr.lower())
 
+    def test_resolution_without_reencode_is_refused(self) -> None:
+        """--resolution only affects the re-encode path; using it alone
+        would silently render at the source resolution."""
+        (self.ep_dir / ".approved").touch()
+        proc = self._run("--resolution", "1920x1080")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("only applies to the re-encode", proc.stderr.lower())
+
+    def test_malformed_resolution_is_refused(self) -> None:
+        (self.ep_dir / ".approved").touch()
+        proc = self._run("--reencode", "--resolution", "0x1080")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("invalid resolution", proc.stderr.lower())
+        self.assertFalse((self.ep_dir / "rendered" / "final.mp4").exists())
+
+    def test_recorded_sha_is_the_pre_render_one(self) -> None:
+        """The recorded spec.sha256 must describe the spec that was
+        rendered -- not whatever landed on disk afterwards."""
+        (self.ep_dir / ".approved").touch()
+        self.assertEqual(self._run().returncode, 0)
+        sha_file = self.ep_dir / "rendered" / "spec.sha256"
+        recorded = sha_file.read_text().strip()
+
+        expected = lifecycle.sha256_spec(
+            lifecycle.Episode(show="test", ep_id="ep-01", path=self.ep_dir)
+        )
+        self.assertEqual(recorded, expected)
+
 
 # ---------------------------------------------------------------------------
 # Lifecycle integration
@@ -435,6 +463,26 @@ class RenderedStateTest(unittest.TestCase):
                 )
                 self.assertTrue(lifecycle.is_rendered(ep))
                 self.assertTrue(lifecycle.is_idempotent_render(ep))
+
+    def test_write_spec_sha_records_the_passed_hash(self) -> None:
+        """A spec edited after the render must not be certified as the
+        rendered spec -- the caller passes the pre-render hash."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch.object(lifecycle, "SERIALS_ROOT", root):
+                ep = lifecycle.Episode.locate("test", "ep-01")
+                ep.path.mkdir(parents=True)
+                spec = ep.path / "spec.json"
+                spec.write_text('{"scenes": []}')
+                pre_render_sha = lifecycle.sha256_spec(ep)
+
+                # the spec changes mid-render
+                spec.write_text('{"scenes": ["changed"]}')
+                lifecycle.write_spec_sha(ep, pre_render_sha)
+
+                recorded = (ep.path / "rendered" / "spec.sha256").read_text().strip()
+                self.assertEqual(recorded, pre_render_sha)
+                self.assertNotEqual(recorded, lifecycle.sha256_spec(ep))
 
 
 if __name__ == "__main__":

@@ -55,9 +55,14 @@ ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
 - Symlink `library` → `/Volumes/MacStudioData/...` был закоммичен: он
   dangling на любом другом clone и течёт локальный путь. Убран из
   индекса; symlink на диске не тронут.
-- `.approved`-sentinels и `matched.json` были закоммичены — каждый
-  clone стартовал с заранее одобренным эпизодом. Убраны из индекса;
-  файлы на диске не тронуты. `.gitignore` теперь их покрывает.
+- `.approved`-sentinels были закоммичены — каждый clone стартовал
+  с заранее одобренным эпизодом. Убраны из индекса; файлы на диске не
+  тронуты. `.gitignore` теперь их покрывает.
+- **`matched.json` тоже были закоммичены** — паттерн
+  `serials/*/matched.json` не матчит двух-уровневые пути
+  `serials/<show>/<ep>/matched.json`, поэтому `git add -A` их
+  возвращал. Убраны из индекса, паттерн исправлен на
+  `serials/**/matched.json` + `serials/**/rendered/`.
 
 ### Документация
 
@@ -68,15 +73,42 @@ ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
   (ссылки на `comic-studio` оставлены как есть).
 - `summary/PRD/PRD.md` — убрано «повторный render без `--force` =
   no-op»: флага `--force` нет.
-- Заголовки двух коммитов были переставлены (`c28c863` назывался
+- Заголовки двух коммитов были переставлены (`1ae31d8` назывался
   «chore: track .pi/», хотя содержал rename на 84 файла) — переписано.
 - Зачёт тестовых файлов: 9, а не 10.
 - Архивные OpenSpec-чеклисты приведены в соответствие с фактом.
 
+### Раунд 2 ревью (после переписывания истории)
+
+Второй прогон Kilo нашёл, что **один из фиксов раунда 1 был иллюзией**:
+перенос захвата хеша до рендера ничего не менял, потому что
+`lifecycle.write_spec_sha(ep)` не принимал хеш и пересчитывал его в
+момент записи — то есть **после** рендера. Зафиксированным оказывался
+spec, изменённый прямо во время рендера.
+
+Исправлено по-настоящему: `write_spec_sha(ep, sha)` теперь записывает
+переданный хеш, CLI передаёт pre-render значение. Два регрессионных
+теста.
+
+Также в раунде 2:
+- **`matched.json` оставались отслеживаемыми** — паттерн
+  `serials/*/matched.json` не матчит `serials/<show>/<ep>/matched.json`.
+  Исправлено на `serials/**/matched.json` + `serials/**/rendered/`.
+- **23 мёртвых хеша** в audit/tasks/CHANGELOG после переписывания
+  истории — обновлены на актуальные, проверены через `git log`.
+- **`--resolution` без `--reencode`** отклоняется (в argparse и в MCP):
+  раньше значение молча игнорировалось на stream-copy-пути, а потом
+  ломало auto-re-encode retry.
+- **MCP timeout 1 ч → 3 ч**: Python's worst case — две попытки ffmpeg по
+  3600 с, Node срабатывал первым, SIGTERM'ил только Python (осиротевшая
+  ffmpeg, пропущенный `finally`-cleanup) и отдавал вызывающему общий
+  timeout вместо чистого `FinalRenderError`.
+- **`AGENTS.md`** — диаграмма деплоя выровнена после rename (`e6c1434`).
+
 ### Верификация
 
-- `pytest tests/` → **157 passed** (было 145, +12 новых тестов)
-- `pytest tests/` из чужого CWD → 157 passed
+- `pytest tests/` → **161 passed** (было 145, +16 новых тестов)
+- `pytest tests/` из чужого CWD → 161 passed
 - `node mcp-server/test/concat_paths.test.js` → 4/4
 - Живой ре-рендер `cyber-heist/ep-01-infiltration` → 35.04 с,
   h264 1920×1080, temp-файлов не осталось, 2-й прогон — no-op
@@ -101,7 +133,7 @@ proposals, потом реализация.
 - Исторические `summary/audit/*` и `summary/tasks/*` **не тронуты** — они
   фиксируют состояние дерева на момент написания; переписывание сделало бы
   историю недостоверной.
-- `.pi/` harness добавлен в git отдельным коммитом (`85b0a95`) — был
+- `.pi/` harness добавлен в git отдельным коммитом (`acda9f4`) — был
   untracked, но на него ссылаются `AGENTS.md` и `README.md`.
 
 **Верификация**:

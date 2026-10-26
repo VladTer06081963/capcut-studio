@@ -77,6 +77,20 @@ def main() -> int:
         if problem:
             return _fail(problem)
 
+    # Validate --resolution up front: it only affects the re-encode path,
+    # but a malformed value would otherwise be accepted silently and then
+    # abort the automatic re-encode retry late.
+    if args.resolution is not None:
+        try:
+            final_renderer._parse_resolution(args.resolution)
+        except final_renderer.FinalRenderError as exc:
+            return _fail(str(exc))
+        if not args.reencode:
+            return _fail(
+                f"--resolution {args.resolution!r} only applies to the re-encode "
+                f"path — add --reencode or drop the flag"
+            )
+
     ep_dir = SERIALS_ROOT / args.serial / args.ep
     if not ep_dir.exists():
         return _fail(f"episode not found: {ep_dir}")
@@ -160,7 +174,7 @@ def main() -> int:
     duration = final_renderer.probe_duration(final_path)
 
     try:
-        lifecycle.write_spec_sha(ep)
+        lifecycle.write_spec_sha(ep, sha)
         lifecycle.mark_rendered(ep)
     except OSError as exc:
         return _fail(f"render succeeded but bookkeeping failed: {exc}")

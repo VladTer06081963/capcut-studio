@@ -65,7 +65,7 @@
 
 - [x] `AGENTS.md` — update the "Approval gate (policy)" and
       "`rendered/final.mp4` is immutable" paragraphs: the gate is now
-      **enforced** by `scripts/render_final.py` (commit `8e32d26`)
+      **enforced** by `scripts/render_final.py` (commit `794d811`)
 - [x] `AGENTS.md` — project layout: add `render_final.py` to the run table
 - [x] `README.md` / `README_RU.md` — mention the final-render CLI
 - [x] `summary/audit/023_final_render_writer.md`
@@ -73,4 +73,5 @@
 - [x] `CHANGELOG.md` entry
 - [x] archive `openspec/changes/final-render-writer/` →
       `openspec/changes/archive/2026-10-19-final-render-writer/`
-- [x] git commit + push on a feature branch, then merge to `main`
+- [x] git commit + push on a feature branch (PR #1)
+- [ ] merge to `main` — PR #1 open, merge pending

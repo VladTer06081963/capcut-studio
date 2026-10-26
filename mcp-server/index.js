@@ -230,12 +230,25 @@ class CapcutMcpServer {
                 isError: true
               };
             }
+            if (args.reencode !== true) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Error: resolution only applies with reencode: true`
+                  }
+                ],
+                isError: true
+              };
+            }
             argv.push("--resolution", args.resolution);
           }
           const { stdout, stderr } = await execFileAsync("python3", argv, {
             cwd: repoRoot,
-            // A full render of a long episode takes minutes.
-            timeout: 60 * 60 * 1000,
+            // Python's worst case is two ffmpeg attempts at 3600s each,
+            // so this must exceed 2h or Node kills Python first and
+            // orphans the ffmpeg process.
+            timeout: 3 * 60 * 60 * 1000,
             maxBuffer: 10 * 1024 * 1024
           });
           return {

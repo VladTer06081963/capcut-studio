@@ -33,6 +33,10 @@ library/.tmp/
 serial/*/rendered/
 serials/*/rendered/
 serials/*/matched.json
+# Nested episode paths are serials/<show>/<ep-id>/... — the single-level
+# patterns above do NOT match those.
+serials/**/matched.json
+serials/**/rendered/
 .tmp/
 
 # Lifecycle sentinels are per-episode runtime state, not source.
