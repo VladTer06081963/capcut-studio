@@ -37,12 +37,19 @@ skill migration are recorded in
 
 | Было | Стало |
 |---|---|
-| `"id": "draw-things"`<br>`"label": "Draw Things (локально; ID модели зависит от установленной модели)"` | `"id": "comfyui"`<br>`"label": "ComfyUI (локально; локальный FLUX/GGUF, порт 8189)"` |
+| `"id": "draw-things"`<br>`"label": "Draw Things (локально; ID модели зависит от установленной модели)"` | `"id": "comfyui"`<br>`"label": "ComfyUI (локально; FLUX/GGUF, порт 8189)"` |
 
 The old label promised "the model ID depends on whichever model is
 loaded" — that was true of Draw Things' mutable app state. ComfyUI pins
 the model in the workflow (`UnetLoaderGGUF.unet_name`), so the label
-now names the actual backend and port.
+now names the backend and port.
+
+A `models` entry was added for the same provider
+(`flux1-dev-Q4_K_S.gguf`, `task_types: ["image"]`). Without it the
+approval UI's model dropdown for `comfyui` offered only manual ID
+entry, while every other provider had a populated list — the pinned
+model was already verified live, so listing it costs nothing and makes
+the dropdown usable.
 
 **The provider string is not validated against the registry** by
 `create_approval()` — it only checks type and length — so this change
@@ -82,6 +89,7 @@ is about *creative prototyping* — a rate of ~16 s per step changes what
 | Шаг | Результат |
 |---|---|
 | `grep -rn -i 'draw.things' --include='*.py' --include='*.json' --include='*.js'` | ✅ no matches — no call code existed |
+| `grep -rn -i 'draw.things'` (all file types) | ⚠ matches remain in **dated historical records** only: `summary/audit/015_project_state_and_prd_alignment.md:109`, `summary/tasks/016_stabilization_and_spend_safety.md:33`, `summary/tasks/012_external_storage_migration.md`. These describe the project state at their own dates and are left untouched on purpose — rewriting them would make the history inaccurate (same reasoning as audit 022). A future "grep Draw Things" pass will re-flag them; the footnote is here so the next reader knows they are intentional. |
 | `python3 -c "json.load(open('config/model_registry.json'))"` | ✅ valid JSON |
 | `python -m pytest tests/test_model_approval.py -q` | ✅ passes with the new provider string |
 | `python -m pytest tests/ -q` | ✅ 161/161 passed |

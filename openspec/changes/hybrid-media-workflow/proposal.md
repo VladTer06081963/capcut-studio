@@ -30,10 +30,10 @@ architecture. Reuse it only after checking it against this approved workflow.
 
 - Explore stories, prompts, visual direction, and references before promotion
   to the production library.
-- Prefer local ComfyUI for image experiments (FLUX dev GGUF on port 8189).
-  Draw Things was removed from the machine; ComfyUI is the local image
-  backend. Note that FLUX on this hardware runs ~16 s per step, so image
-  experiments are not cheap — prototype at 512–768 px and fewer steps.
+- Prefer local ComfyUI for image experiments. Draw Things was removed from the
+  machine; ComfyUI is the local image backend. Keep experiments small — local
+  diffusion is slow on consumer hardware, so prototype at reduced resolution
+  and fewer steps, and promote only reviewed results.
 - Subscription-based MiniMax image generation is available under the user's
   subscription. Do not query subscription limits, calculate a per-image price,
   or require a spend/credit cap. The user may inspect current prices or plan

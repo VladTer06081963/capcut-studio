@@ -18,17 +18,20 @@ ISO-8601 timestamped log. Format mirrors `~/Projects/comic-studio/CHANGELOG.md`.
   Старая метка обещала «ID модели зависит от загруженной модели» — это
   было правдой для изменяемого состояния приложения Draw Things.
   ComfyUI фиксирует модель в самом workflow (`UnetLoaderGGUF.unet_name`),
-  поэтому метка теперь называет бэкенд и порт.
+  поэтому метка теперь называет бэкенд и порт. Добавлена запись в
+  `models`: `flux1-dev-Q4_K_S.gguf` (`task_types: ["image"]`) — без неё
+  дропдаун моделей в approval-UI для `comfyui` предлагал только ручной
+  ввод ID, хотя модель уже проверена живьём.
 - **`tests/test_model_approval.py`** — фикстура провайдера синхронизирована
   с реестром. Строка провайдера не валидируется по реестру
   (`create_approval()` проверяет только тип и длину), так что это
   косметика листинга, а не поведения.
 - **`openspec/changes/hybrid-media-workflow/proposal.md`** — «Prefer local
-  Draw Things for image experiments» → ComfyUI (FLUX dev GGUF, порт 8189).
-  Proposal in-flight, поэтому он всё ещё должен описывать существующий
-  бэкенд. Добавлена заметка про скорость: ~16 с/шаг меняет смысл слова
-  «прототипировать» — черновики стоит делать в 512–768 px и меньшим
-  числом шагов.
+  Draw Things for image experiments» → ComfyUI. Proposal in-flight, поэтому
+  он всё ещё должен описывать существующий бэкенд. Формулировка
+  оставлена профильной, без машинно-специфичных деталей (порт, ~16 с/шаг) —
+  proposal описывает workflow, а не конфигурацию этой машины; конкретика
+  живёт в аудите.
 - **`summary/audit/025_draw-things-removed_comfyui_provider.md`** — аудит.
 
 ### Проверка
