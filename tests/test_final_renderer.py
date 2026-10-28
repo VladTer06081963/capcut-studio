@@ -494,7 +494,12 @@ class RenderFinalCliTest(unittest.TestCase):
         fake_ffmpeg.write_text(
             "#!/bin/sh\n"
             f"printf '{{\"scenes\": [\"edited mid-render\"]}}' > '{spec_path}'\n"
-            "printf 'fake' > \"${@: -1}\"\n"
+            # POSIX-safe way to reach the last argument: the shim has to
+            # write its output to the output path, which is the final argv
+            # entry. "${@: -1}" is a bashism — /bin/sh is dash on Linux,
+            # where it fails with "Bad substitution".
+            "for last_arg; do :; done\n"
+            "printf 'fake' > \"$last_arg\"\n"
             "exit 0\n"
         )
         fake_ffmpeg.chmod(0o755)
