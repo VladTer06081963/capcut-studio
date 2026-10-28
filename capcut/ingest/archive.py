@@ -25,7 +25,15 @@ from typing import Any
 import requests
 
 from capcut.lib.config import STOCK_DIR
+from capcut.lib.atomic import atomic_write_json
 from capcut.lib.lifecycle import sha256_file
+from capcut.lib.media import (
+    MediaProbe,
+    atomic_download,
+    metadata_path_for,
+    probe_media,
+    safe_filename_component,
+)
 
 
 ARCHIVE_SEARCH_URL = "https://archive.org/advancedsearch.php"
@@ -50,12 +58,10 @@ class VideoMeta:
     license: str                          # "publicdomain" | "cc-by" etc.
 
 
-@dataclass(frozen=True)
-class ProbeResult:
-    duration_sec: float
-    width: int
-    height: int
-    fps: float
+# The probe result used to be declared separately in every ingest module;
+# the implementation now lives in capcut.lib.media. The alias keeps
+# `youtube.ProbeResult(...)` and friends working.
+ProbeResult = MediaProbe
 
 
 @dataclass
@@ -156,17 +162,16 @@ def download_video(
 ) -> Path:
     """Download an Archive.org video MP4 to output_dir/<id>.mp4."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    target = output_dir / f"{video_meta.identifier}.mp4"
+    safe_id = safe_filename_component(video_meta.identifier)
+    if safe_id is None:
+        raise ValueError(f"unsafe provider id: {video_meta.identifier!r}")
+    target = output_dir / f"{safe_id}.mp4"
 
     mp4_url = _resolve_mp4_url(video_meta.identifier)
 
     with requests.get(mp4_url, headers=DEFAULT_HEADERS, stream=True, timeout=120) as resp:
         resp.raise_for_status()
-        with target.open("wb") as fh:
-            for chunk in resp.iter_content(chunk_size=8192):
-                fh.write(chunk)
-
-    return target
+        return atomic_download(resp, target)
 
 
 # ---------------------------------------------------------------------------
@@ -174,36 +179,8 @@ def download_video(
 # ---------------------------------------------------------------------------
 
 def probe_metadata(mp4_path: Path) -> ProbeResult:
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe is None:
-        raise RuntimeError("ffprobe not found in PATH")
-
-    cmd = [
-        ffprobe, "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate:format=duration",
-        "-of", "json",
-        str(mp4_path),
-    ]
-    out = subprocess.check_output(cmd, timeout=15).decode()
-    data = json.loads(out)
-
-    stream = (data.get("streams") or [{}])[0]
-    fmt = data.get("format") or {}
-    fps_str = stream.get("r_frame_rate", "0/1")
-    try:
-        num, den = fps_str.split("/")
-        fps = float(num) / float(den) if float(den) != 0 else 0.0
-    except (ValueError, ZeroDivisionError):
-        fps = 0.0
-
-    return ProbeResult(
-        duration_sec=float(fmt.get("duration", 0)),
-        width=int(stream.get("width", 0)),
-        height=int(stream.get("height", 0)),
-        fps=fps,
-    )
-
+    """Use ffprobe to extract duration / resolution / fps. Requires ffmpeg."""
+    return probe_media(mp4_path, strict=True)
 
 # ---------------------------------------------------------------------------
 # metadata.json writer
@@ -236,8 +213,8 @@ def write_metadata(
         "archive_title": video_meta.title,
         "archive_year": video_meta.year,
     }
-    metadata_path = mp4_path.with_suffix(mp4_path.suffix + ".metadata.json")
-    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
+    metadata_path = metadata_path_for(mp4_path)
+    atomic_write_json(metadata_path, metadata)
     return metadata_path
 
 
@@ -259,13 +236,29 @@ def ingest(
     errors: list[tuple[str, str]] = []
 
     for vm in metas[:count]:
+        mp4: Path | None = None
         try:
             mp4 = download_video(vm, output_dir)
+        except Exception as e:
+            errors.append((vm.identifier, str(e)))
+            # A failed transfer may have left a partial file behind.
+            if mp4 is not None:
+                try:
+                    mp4.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            continue
+        try:
             probe = probe_metadata(mp4)
             write_metadata(mp4, video_meta=vm, probe=probe)
             files.append(mp4)
         except Exception as e:
             errors.append((vm.identifier, str(e)))
+            # The download itself was byte-complete (atomic_download
+            # guarantees that) — only the probe or the metadata write
+            # failed. Deleting it would throw away a good download, and with
+            # ffprobe missing every file would be deleted and nothing would
+            # ever be ingested. The file is kept and reported instead.
 
     return IngestResult(videos=metas, files=files, errors=errors)
 

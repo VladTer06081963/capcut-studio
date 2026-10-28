@@ -152,6 +152,25 @@ def main() -> int:
     except (OSError, FileNotFoundError) as exc:
         return _fail(f"cannot hash {spec_path}: {exc}")
 
+    # Record the hash BEFORE rendering, not after.
+    #
+    # `final.mp4` is immutable. If it were written first and the bookkeeping
+    # then failed, the episode would be stranded forever: final.mp4 present,
+    # spec.sha256 missing, and every later run refuses with "the render was
+    # interrupted before its spec hash was recorded" — the episode can never
+    # be rendered again and has to be re-created by hand.
+    #
+    # Writing the hash first inverts that failure mode:
+    #   - hash write fails -> nothing was rendered, the run is cleanly
+    #     retryable;
+    #   - render fails     -> a stale hash is left behind, but the
+    #     idempotency check requires final.mp4 to exist as well, so the
+    #     stale hash is simply overwritten on the next run.
+    try:
+        lifecycle.write_spec_sha(ep, sha)
+    except OSError as exc:
+        return _fail(f"cannot record {sha_path} before rendering: {exc}")
+
     print(f"[render_final] rendering {final_path}")
     try:
         final_renderer.render_final(
@@ -174,7 +193,6 @@ def main() -> int:
     duration = final_renderer.probe_duration(final_path)
 
     try:
-        lifecycle.write_spec_sha(ep, sha)
         lifecycle.mark_rendered(ep)
     except OSError as exc:
         return _fail(f"render succeeded but bookkeeping failed: {exc}")

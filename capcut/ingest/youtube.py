@@ -29,7 +29,9 @@ from capcut.lib.config import (
     YOUTUBE_API_KEY,
     has_youtube,
 )
+from capcut.lib.atomic import atomic_write_json
 from capcut.lib.lifecycle import sha256_file
+from capcut.lib.media import MediaProbe, metadata_path_for, probe_media
 
 
 # ---------------------------------------------------------------------------
@@ -222,47 +224,15 @@ def download_video(
 # ffprobe metadata
 # ---------------------------------------------------------------------------
 
-@dataclass(frozen=True)
-class ProbeResult:
-    duration_sec: float
-    width: int
-    height: int
-    fps: float
+# The probe result used to be declared separately in every ingest module;
+# the implementation now lives in capcut.lib.media. The alias keeps
+# `youtube.ProbeResult(...)` and friends working.
+ProbeResult = MediaProbe
 
 
 def probe_metadata(mp4_path: Path) -> ProbeResult:
     """Use ffprobe to extract duration / resolution / fps. Requires ffmpeg."""
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe is None:
-        raise RuntimeError("ffprobe not found in PATH — install ffmpeg")
-
-    cmd = [
-        ffprobe,
-        "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate:format=duration",
-        "-of", "json",
-        str(mp4_path),
-    ]
-    out = subprocess.check_output(cmd, timeout=15).decode()
-    data = json.loads(out)
-
-    stream = (data.get("streams") or [{}])[0]
-    fmt = data.get("format") or {}
-    fps_str = stream.get("r_frame_rate", "0/1")
-    try:
-        num, den = fps_str.split("/")
-        fps = float(num) / float(den) if float(den) != 0 else 0.0
-    except (ValueError, ZeroDivisionError):
-        fps = 0.0
-
-    return ProbeResult(
-        duration_sec=float(fmt.get("duration", 0)),
-        width=int(stream.get("width", 0)),
-        height=int(stream.get("height", 0)),
-        fps=fps,
-    )
-
+    return probe_media(mp4_path, strict=True)
 
 # ---------------------------------------------------------------------------
 # metadata.json writer
@@ -298,8 +268,8 @@ def write_metadata(
         "youtube_id": video_meta.id,
         "youtube_title": video_meta.title,
     }
-    metadata_path = mp4_path.with_suffix(mp4_path.suffix + ".metadata.json")
-    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
+    metadata_path = metadata_path_for(mp4_path)
+    atomic_write_json(metadata_path, metadata)
     return metadata_path
 
 
@@ -339,13 +309,27 @@ def ingest(
     errors: list[tuple[str, str]] = []
 
     for vm in metas[:count]:
+        mp4: Path | None = None
         try:
             mp4 = download_video(vm.id, output_dir, ydl_opts)
+        except Exception as e:
+            errors.append((vm.id, str(e)))
+            # A failed transfer may have left a partial file behind.
+            if mp4 is not None:
+                try:
+                    mp4.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            continue
+        try:
             probe = probe_metadata(mp4)
             write_metadata(mp4, video_meta=vm, probe=probe)
             files.append(mp4)
         except Exception as e:
             errors.append((vm.id, str(e)))
+            # The download completed (yt-dlp writes to a .part file and
+            # renames it), so only the probe or the metadata write failed —
+            # keep the file and report it, like the other ingest sources.
 
     return IngestResult(videos=metas, files=files, errors=errors)
 

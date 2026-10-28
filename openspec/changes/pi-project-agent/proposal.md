@@ -1,5 +1,51 @@
 # Change: Project-scoped Pi agent and workflow harness
 
+## Why
+
+The project needs one consistent agent interface for its video-series
+workflow. Pi happens to be installed globally on the Mac Studio, but that is a
+machine fact, not a project contract: another host that checks out this
+repository would work from a different ruleset, and a personal global
+configuration would end up as the only source of project rules. The harness
+has to live in the repository, with an explicit tool policy and skills that
+respect the lifecycle sentinels, the immutable final render and the one-task
+model approval.
+
+## What Changes
+
+- Establish a project-scoped Pi harness: `.pi/README.md` plus skills under
+  `.pi/skills/`.
+- Project setup detects and reuses the existing Pi runtime where one is
+  present, installs only where it is absent, and never reinstalls on the Mac
+  Studio.
+- Configure Pi to discover the capcut-studio MCP server through a supported
+  adapter and verify the exposed tool list.
+- Keep the local model-approval frontend as the manual selection surface; Pi
+  routes generation through the same approval contract.
+- Document the Telegram text-command bridge and the Mini App as later,
+  auxiliary interfaces that do not replace MCP.
+
+## Capabilities
+
+**New Capabilities**
+
+- `project-agent` — the project-scoped Pi runtime and harness, its skills and
+  tool policy, the MCP integration, and the auxiliary chat interfaces.
+
+**Modified Capabilities**
+
+- None. This change introduces the capability; it does not alter an existing
+  one.
+
+## Impact
+
+- `.pi/README.md` and `.pi/skills/**` (already present as a scaffold),
+  `.mcp.json`, `.agents/mcp_config.json`, `AGENTS.md` (harness and tool-policy
+  section), and a setup helper for the Pi runtime.
+- No new runtime dependency: Pi stays a per-host global install, detected and
+  reused by setup.
+- No credentials in the repository.
+
 ## Status
 
 Proposed; documentation and implementation planning only. No Pi runtime,

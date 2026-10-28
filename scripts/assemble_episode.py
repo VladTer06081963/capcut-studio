@@ -57,7 +57,11 @@ def main() -> int:
         print(f"[assemble] unmatched scenes: {matched.unmatched_scenes()}")
 
     print(f"[assemble] building Concat timeline")
-    timeline = concat_exporter.assemble_timeline(spec, matched, library_root=library_root)
+    try:
+        timeline = concat_exporter.assemble_timeline(spec, matched, library_root=library_root)
+    except (concat_exporter.ClipIntegrityError, OSError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
     draft_path = ep_dir / "rendered" / "draft.json"
     concat_exporter.write_concat_timeline(timeline, draft_path)
     print(f"[assemble] wrote {draft_path}")

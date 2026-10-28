@@ -51,7 +51,6 @@ STOCK_DIR: Path = LIBRARY_ROOT / "stock"
 # ---------------------------------------------------------------------------
 
 DEFAULT_VIDEO_PROVIDER: str = os.environ.get("DEFAULT_VIDEO_PROVIDER", "kie/veo-3-1")
-DEFAULT_VIDEO_MODEL: str = os.environ.get("DEFAULT_VIDEO_MODEL", "veo-3-1")
 DEFAULT_TEXT_PROVIDER: str = os.environ.get("DEFAULT_TEXT_PROVIDER", "qwen3-max")
 DEFAULT_IMAGE_PROVIDER: str = os.environ.get("DEFAULT_IMAGE_PROVIDER", "qwen-image")
 # Comma-separated fallback candidates. ProviderRouter.generate() currently
@@ -69,19 +68,22 @@ DEFAULT_VIDEO_FALLBACK: str = os.environ.get(
 # ---------------------------------------------------------------------------
 
 MINIMAX_API_KEY: str | None = os.environ.get("MINIMAX_API_KEY")
-MINIMAX_BASE_URL: str = os.environ.get("MINIMAX_BASE_URL", "https://api.MiniMax.io")
+MINIMAX_BASE_URL: str = os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.chat/v1")
 
 OPENROUTER_API_KEY: str | None = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL: str = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 GEMINI_API_KEY: str | None = os.environ.get("GEMINI_API_KEY")
-GEMINI_BASE_URL: str = os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai")
+# Native Gemini endpoint (generateContent), used by capcut/episode/spec_writer.py.
+GEMINI_NATIVE_BASE_URL: str = os.environ.get("GEMINI_NATIVE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
 
 # Kie.ai — unified video/image/audio/LLM API (OpenRouter-for-media).
 # Get a key at https://kie.ai (credit-based, ~30% off direct pricing).
 # Used by capcut/render/kie_client.py; default video provider since F-013.
 KIE_API_KEY: str | None = os.environ.get("KIE_API_KEY")
 KIE_BASE_URL: str = os.environ.get("KIE_BASE_URL", "https://api.kie.ai")
+# Separate host for the upload endpoints.
+KIE_UPLOAD_BASE: str = os.environ.get("KIE_UPLOAD_BASE", "https://kieai.redpandaai.co")
 # Where to cache downloaded result files (Kie URLs expire ~24h)
 KIE_DOWNLOAD_DIR: Path = Path(os.environ.get("KIE_DOWNLOAD_DIR", str(LIBRARY_TEMP / "kie_downloads")))
 
@@ -121,8 +123,6 @@ def has_lm_studio_text() -> bool:
         return bool(data.get("data"))
     except Exception:
         return False
-
-CONCAT_MCP_URL: str = os.environ.get("CONCAT_MCP_URL", "http://127.0.0.1:9847")
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +166,22 @@ def has_coverr() -> bool:
     return bool(COVERR_API_KEY)
 
 
-def is_test_env() -> bool:
-    """True if running under tests (pytest sets this in conftest.py later)."""
-    return bool(os.environ.get("CAPCUT_STUDIO_TEST"))
+def has_pixabay() -> bool:
+    """True if Pixabay API key is configured.
+
+    There is no Pixabay ingest source in the tree yet, so this is a
+    predicate for a planned source, not for a working one.
+    """
+    return bool(PIXABAY_API_KEY)
+
+
+def has_pexels() -> bool:
+    """True if Pexels API key is configured.
+
+    There is no Pexels ingest source in the tree yet, so this is a
+    predicate for a planned source, not for a working one.
+    """
+    return bool(PEXELS_API_KEY)
 
 
 def ensure_dirs() -> None:
@@ -187,7 +200,6 @@ __all__ = [
     "AI_DIR",
     "STOCK_DIR",
     "DEFAULT_VIDEO_PROVIDER",
-    "DEFAULT_VIDEO_MODEL",
     "DEFAULT_VIDEO_FALLBACK",
     "DEFAULT_TEXT_PROVIDER",
     "DEFAULT_IMAGE_PROVIDER",
@@ -196,9 +208,10 @@ __all__ = [
     "OPENROUTER_API_KEY",
     "OPENROUTER_BASE_URL",
     "GEMINI_API_KEY",
-    "GEMINI_BASE_URL",
+    "GEMINI_NATIVE_BASE_URL",
     "KIE_API_KEY",
     "KIE_BASE_URL",
+    "KIE_UPLOAD_BASE",
     "KIE_DOWNLOAD_DIR",
     "YOUTUBE_API_KEY",
     "COVERR_API_KEY",
@@ -208,7 +221,6 @@ __all__ = [
     "LM_STUDIO_URL",
     "LM_STUDIO_EMBED_MODEL",
     "LM_STUDIO_CAPTION_MODEL",
-    "CONCAT_MCP_URL",
     "DAILY_AI_BUDGET_USD",
     "has_minimax",
     "has_openrouter",
@@ -216,6 +228,7 @@ __all__ = [
     "has_kie",
     "has_youtube",
     "has_coverr",
-    "is_test_env",
+    "has_pixabay",
+    "has_pexels",
     "ensure_dirs",
 ]

@@ -2,7 +2,7 @@
 Episode lifecycle — sentinel-based state machine on the filesystem.
 
 States (per `serials/<show>/<ep-id>/`):
-  draft       — spec.json exists, .draft sentinel present
+  draft       — spec.json exists, not approved yet
   approved    — .approved sentinel present (after human/auto approval)
   matched     — matched.json written by matcher
   rendered    — rendered/final.mp4 exists
@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
+from .atomic import atomic_write_text
 from .config import SERIALS_ROOT
 
 
@@ -67,16 +68,6 @@ class Episode:
     show: str
     ep_id: str
     path: Path
-
-    @classmethod
-    def from_path(cls, path: Path) -> "Episode":
-        """Build from an existing episode dir (`serials/<show>/<ep-id>/`)."""
-        # Defensive: allow path to be the dir or its parent
-        if (path / "spec.json").exists() or (path / "brief.md").exists():
-            ep_dir = path
-        else:
-            ep_dir = path
-        return cls(show=ep_dir.parent.name, ep_id=ep_dir.name, path=ep_dir)
 
     @classmethod
     def locate(cls, show: str, ep_id: str) -> "Episode":
@@ -152,10 +143,20 @@ def revise(ep: Episode) -> None:
 
 
 def mark_matched(ep: Episode) -> None:
-    """Matcher wrote matched.json. Sanity-check before transitioning."""
+    """Matcher wrote matched.json. Sanity-check before transitioning.
+
+    The approval sentinel is deliberately left alone. `.approved` records
+    that a human approved the spec, which is orthogonal to whether the
+    episode has been matched. Removing it here would disarm the render
+    gate — `scripts/render_final.py` refuses to render without `.approved` —
+    so wiring this function up would make matched episodes permanently
+    un-renderable.
+
+    The "matched" state is derived from `matched.json` existing, so it
+    needs no sentinel of its own.
+    """
     if not (ep.path / "matched.json").exists():
         raise FileNotFoundError(f"cannot mark matched: matched.json missing in {ep}")
-    _rm(ep, ".approved")  # approval was implicit; explicit approved used elsewhere
 
 
 def mark_rendered(ep: Episode) -> None:
@@ -219,7 +220,10 @@ def write_spec_sha(ep: Episode, sha: str | None = None) -> None:
     """
     rendered = ep.path / "rendered"
     rendered.mkdir(exist_ok=True)
-    (rendered / "spec.sha256").write_text(sha if sha is not None else sha256_spec(ep))
+    atomic_write_text(
+        rendered / "spec.sha256",
+        sha if sha is not None else sha256_spec(ep),
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,15 @@ from capcut.lib.config import (
     STOCK_DIR,
     has_coverr,
 )
+from capcut.lib.atomic import atomic_write_json
 from capcut.lib.lifecycle import sha256_file
+from capcut.lib.media import (
+    MediaProbe,
+    atomic_download,
+    metadata_path_for,
+    probe_media,
+    safe_filename_component,
+)
 
 
 COVERR_API_URL = "https://api.coverr.co/v1/videos"
@@ -52,12 +60,10 @@ class VideoMeta:
     tags: tuple[str, ...]
 
 
-@dataclass(frozen=True)
-class ProbeResult:
-    duration_sec: float
-    width: int
-    height: int
-    fps: float
+# The probe result used to be declared separately in every ingest module;
+# the implementation now lives in capcut.lib.media. The alias keeps
+# `youtube.ProbeResult(...)` and friends working.
+ProbeResult = MediaProbe
 
 
 @dataclass
@@ -136,7 +142,10 @@ def download_video(
         raise ValueError(f"video {video_meta.id} has no download_url")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    target = output_dir / f"{video_meta.id}.mp4"
+    safe_id = safe_filename_component(video_meta.id)
+    if safe_id is None:
+        raise ValueError(f"unsafe provider id: {video_meta.id!r}")
+    target = output_dir / f"{safe_id}.mp4"
 
     with requests.get(
         video_meta.download_url,
@@ -145,11 +154,7 @@ def download_video(
         timeout=60,
     ) as resp:
         resp.raise_for_status()
-        with target.open("wb") as fh:
-            for chunk in resp.iter_content(chunk_size=8192):
-                fh.write(chunk)
-
-    return target
+        return atomic_download(resp, target)
 
 
 # ---------------------------------------------------------------------------
@@ -157,37 +162,8 @@ def download_video(
 # ---------------------------------------------------------------------------
 
 def probe_metadata(mp4_path: Path) -> ProbeResult:
-    """Use ffprobe to extract duration / resolution / fps."""
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe is None:
-        raise RuntimeError("ffprobe not found in PATH — install ffmpeg")
-
-    cmd = [
-        ffprobe, "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate:format=duration",
-        "-of", "json",
-        str(mp4_path),
-    ]
-    out = subprocess.check_output(cmd, timeout=15).decode()
-    data = json.loads(out)
-
-    stream = (data.get("streams") or [{}])[0]
-    fmt = data.get("format") or {}
-    fps_str = stream.get("r_frame_rate", "0/1")
-    try:
-        num, den = fps_str.split("/")
-        fps = float(num) / float(den) if float(den) != 0 else 0.0
-    except (ValueError, ZeroDivisionError):
-        fps = 0.0
-
-    return ProbeResult(
-        duration_sec=float(fmt.get("duration", 0)),
-        width=int(stream.get("width", 0)),
-        height=int(stream.get("height", 0)),
-        fps=fps,
-    )
-
+    """Use ffprobe to extract duration / resolution / fps. Requires ffmpeg."""
+    return probe_media(mp4_path, strict=True)
 
 # ---------------------------------------------------------------------------
 # metadata.json writer
@@ -220,8 +196,8 @@ def write_metadata(
         "coverr_id": video_meta.id,
         "coverr_title": video_meta.title,
     }
-    metadata_path = mp4_path.with_suffix(mp4_path.suffix + ".metadata.json")
-    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
+    metadata_path = metadata_path_for(mp4_path)
+    atomic_write_json(metadata_path, metadata)
     return metadata_path
 
 
@@ -242,13 +218,29 @@ def ingest(
     errors: list[tuple[str, str]] = []
 
     for vm in metas[:count]:
+        mp4: Path | None = None
         try:
             mp4 = download_video(vm, output_dir)
+        except Exception as e:
+            errors.append((vm.id, str(e)))
+            # A failed transfer may have left a partial file behind.
+            if mp4 is not None:
+                try:
+                    mp4.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            continue
+        try:
             probe = probe_metadata(mp4)
             write_metadata(mp4, video_meta=vm, probe=probe)
             files.append(mp4)
         except Exception as e:
             errors.append((vm.id, str(e)))
+            # The download itself was byte-complete (atomic_download
+            # guarantees that) — only the probe or the metadata write
+            # failed. Deleting it would throw away a good download, and with
+            # ffprobe missing every file would be deleted and nothing would
+            # ever be ingested. The file is kept and reported instead.
 
     return IngestResult(videos=metas, files=files, errors=errors)
 

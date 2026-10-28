@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from capcut.index import embedder
+from capcut.lib.media import metadata_path_for
 
 
 SAMPLE_CAPTION_RESPONSE = {
@@ -223,6 +224,139 @@ class SearchByTextTest(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0][0], "ai-1")
+
+
+# ---------------------------------------------------------------------------
+# Metadata convention end-to-end
+# ---------------------------------------------------------------------------
+
+class MetadataConventionTest(unittest.TestCase):
+    """A clip's provenance reaches the index only via the metadata sibling.
+
+    When the producer and the indexer disagree on the filename, the clip is
+    indexed with `source=NULL` and a synthetic id. It then carries no source,
+    no license and no tags, and `search_by_text(source_filter="ai")` can
+    never return it — the clip exists in the library but is invisible to the
+    matcher.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.mkdtemp()
+        self.lib_root = Path(self._tmp) / "lib"
+        (self.lib_root / "ai" / "scenes").mkdir(parents=True)
+        self.db = Path(self._tmp) / "index.sqlite"
+        self.conn = embedder.init_db(self.db)
+
+    def tearDown(self) -> None:
+        self.conn.close()
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _write_clip(self, name: str, metadata: dict | None) -> Path:
+        clip = self.lib_root / "ai" / "scenes" / name
+        clip.write_bytes(b"\x00" * 200)
+        if metadata is not None:
+            metadata_path_for(clip).write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
+        return clip
+
+    def _index(self, clip: Path, *, with_embedding: bool = False) -> None:
+        vec = [1.0] + [0.0] * 383
+        with patch.object(embedder, "_probe_for_indexing", return_value={
+            "duration_sec": 5.0, "width": 1920, "height": 1080, "fps": 24.0,
+        }), patch.object(embedder, "lm_studio_alive", return_value=with_embedding), \
+             patch.object(embedder, "embed_text", return_value=vec):
+            embedder.index_clip(self.conn, clip, self.lib_root)
+        # index_clip() does not commit — index_library() owns the commit.
+        # search_by_text() opens its own connection, so the row has to be
+        # flushed before it can see it.
+        self.conn.commit()
+
+    def test_ai_clip_metadata_yields_source_and_canonical_id(self) -> None:
+        clip = self._write_clip("ep-01-s01.mp4", {
+            "id": "ai:cyber-heist:ep-01-s01",
+            "source": "ai",
+            "model": "bytedance/v1-lite-text-to-video",
+            "prompt": "A dark server room, cinematic",
+            "tags": ["cyber-heist", "server-room"],
+            "license": "self",
+        })
+        self._index(clip)
+
+        row = self.conn.execute(
+            "SELECT id, source, tags FROM clips"
+        ).fetchone()
+        self.assertEqual(row[0], "ai:cyber-heist:ep-01-s01")
+        self.assertEqual(row[1], "ai")
+        self.assertIn("cyber-heist", row[2])
+
+    def test_clip_without_metadata_is_indexed_without_provenance(self) -> None:
+        """The negative control: no metadata means no source, no canonical id.
+
+        The fallback id is the path *relative to the library root*, not the
+        file name — see test_same_basename_in_two_directories_keeps_both.
+        """
+        clip = self._write_clip("ep-01-s02.mp4", None)
+        self._index(clip)
+
+        row = self.conn.execute("SELECT id, source FROM clips").fetchone()
+        self.assertEqual(row[0], "unknown:ai/scenes/ep-01-s02.mp4")
+        self.assertIsNone(row[1])
+
+    def test_same_basename_in_two_directories_keeps_both(self) -> None:
+        """Two assets with the same file name must not share one id.
+
+        With a basename-based fallback id the second clip would replace the
+        first in the shared index — one asset silently disappears.
+        """
+        first = self._write_clip("clip.mp4", None)
+        second_dir = self.lib_root / "ai" / "other"
+        second_dir.mkdir(parents=True)
+        second = second_dir / "clip.mp4"
+        second.write_bytes(b"\x00" * 200)
+
+        self._index(first)
+        self._index(second)
+
+        rows = self.conn.execute("SELECT id FROM clips ORDER BY id").fetchall()
+        self.assertEqual(
+            [r[0] for r in rows],
+            ["unknown:ai/other/clip.mp4", "unknown:ai/scenes/clip.mp4"],
+        )
+
+    def test_ai_clip_is_reachable_by_source_filter(self) -> None:
+        clip = self._write_clip("ep-01-s03.mp4", {
+            "id": "ai:cyber-heist:ep-01-s03",
+            "source": "ai",
+            "tags": ["fog"],
+        })
+        self._index(clip, with_embedding=True)
+
+        vec = [1.0] + [0.0] * 383
+        results = embedder.search_by_text(self.db, vec, source_filter="ai")
+        self.assertEqual([r[0] for r in results], ["ai:cyber-heist:ep-01-s03"])
+
+
+class EmbeddingDimensionMismatchTest(unittest.TestCase):
+    """A query embedded with another model must not silently match."""
+
+    def test_mismatched_query_dimension_raises(self) -> None:
+        import sqlite3
+        import tempfile as _tf
+
+        db = Path(_tf.mkdtemp()) / "i.sqlite"
+        conn = embedder.init_db(db)
+        conn.execute(
+            "INSERT INTO clips (id, path, sha256, source, embedding, indexed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("c1", "p", "a" * 64, "ai", embedder.pack_embedding([1.0] + [0.0] * 383), "t"),
+        )
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(embedder.EmbeddingDimensionMismatch):
+            embedder.search_by_text(db, [1.0] + [0.0] * 767)
 
 
 if __name__ == "__main__":

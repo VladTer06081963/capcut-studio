@@ -423,6 +423,53 @@ class RenderFinalCliTest(unittest.TestCase):
         self.assertIn("invalid resolution", proc.stderr.lower())
         self.assertFalse((self.ep_dir / "rendered" / "final.mp4").exists())
 
+    def test_failed_render_leaves_the_episode_retryable(self) -> None:
+        """A failed render must not strand the episode.
+
+        `final.mp4` is immutable. If it were published before the spec hash
+        was recorded, a bookkeeping failure would leave an episode that no
+        later run can render: final.mp4 present, spec.sha256 missing, and
+        the CLI refusing with "the render was interrupted before its spec
+        hash was recorded". The hash is therefore recorded *before* the
+        render, so a failed render leaves the episode cleanly retryable.
+        """
+        (self.ep_dir / ".approved").touch()
+
+        # First run: a fake ffmpeg that always fails.
+        fake_bin = self.tmp_path / "fakebin"
+        fake_bin.mkdir(exist_ok=True)
+        fake_ffmpeg = fake_bin / "ffmpeg"
+        fake_ffmpeg.write_text("#!/bin/sh\nexit 1\n")
+        fake_ffmpeg.chmod(0o755)
+
+        env = dict(os.environ)
+        env["SERIALS_ROOT"] = str(self.tmp_path / "serials")
+        env["PYTHONPATH"] = str(self.repo_root)
+        env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+
+        failed = subprocess.run(
+            [
+                "python3",
+                str(self.repo_root / "scripts" / "render_final.py"),
+                "--serial", "test",
+                "--ep", "ep-01",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(self.repo_root),
+        )
+        self.assertNotEqual(failed.returncode, 0)
+        # No final.mp4 was published...
+        self.assertFalse((self.ep_dir / "rendered" / "final.mp4").exists())
+        # ...but the hash was recorded up-front, so nothing is stranded.
+        self.assertTrue((self.ep_dir / "rendered" / "spec.sha256").exists())
+
+        # Second run with the real ffmpeg: the episode renders normally.
+        proc = self._run()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue((self.ep_dir / "rendered" / "final.mp4").exists())
+
     def test_recorded_sha_is_the_pre_render_one(self) -> None:
         """The recorded spec.sha256 must describe the spec that was
         rendered -- not whatever landed on disk afterwards.
@@ -447,7 +494,12 @@ class RenderFinalCliTest(unittest.TestCase):
         fake_ffmpeg.write_text(
             "#!/bin/sh\n"
             f"printf '{{\"scenes\": [\"edited mid-render\"]}}' > '{spec_path}'\n"
-            "printf 'fake' > \"${@: -1}\"\n"
+            # POSIX-safe way to reach the last argument: the shim has to
+            # write its output to the output path, which is the final argv
+            # entry. "${@: -1}" is a bashism — /bin/sh is dash on Linux,
+            # where it fails with "Bad substitution".
+            "for last_arg; do :; done\n"
+            "printf 'fake' > \"$last_arg\"\n"
             "exit 0\n"
         )
         fake_ffmpeg.chmod(0o755)

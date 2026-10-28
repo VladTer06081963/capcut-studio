@@ -24,6 +24,7 @@ from typing import Any
 
 from capcut.episode.spec_writer import EpisodeSpec
 from capcut.index import embedder
+from capcut.lib.atomic import atomic_write_json
 from capcut.lib.config import (
     DEFAULT_VIDEO_PROVIDER,
     LIBRARY_INDEX,
@@ -53,13 +54,17 @@ class SceneMatch:
     source: str                        # 'ai' | 'stock' | 'archive' | 'youtube' | 'mixkit' | 'coverr' | 'none'
     clip_path: str | None = None       # relative to library_root
     duration_sec: float = 0.0          # duration of matched clip
+    sha256: str | None = None          # content hash of the library file at match time
     warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class MatchedEpisode:
     spec_id: str
-    spec_sha256: str
+    # Hash of the scene list this match was computed from. Deliberately NOT
+    # called "spec hash": `capcut.lib.lifecycle.sha256_spec()` hashes the
+    # spec.json *file*, and the two values are not comparable.
+    scenes_sha256: str
     matched_at: str
     embed_model: str
     scenes: list[SceneMatch]
@@ -74,10 +79,15 @@ class MatchedEpisode:
 # ---------------------------------------------------------------------------
 
 def _embed_query(query: str, model: str) -> list[float]:
-    """Embed a scene query via LM Studio. Raises on failure."""
+    """Embed a scene query via LM Studio. Raises on failure.
+
+    The model is passed through to the embedder — the caller may embed
+    against a different model than the one configured globally, and
+    silently ignoring it would make `match_episode(embed_model=...)` a lie.
+    """
     if not query.strip():
         raise ValueError("empty query")
-    return embedder.embed_text(query, timeout=30)
+    return embedder.embed_text(query, model=model, timeout=30)
 
 
 # ---------------------------------------------------------------------------
@@ -152,14 +162,28 @@ def match_episode(
         best_source: str = "none"
         best_path: str | None = None
         best_duration: float = 0.0
+        best_sha256: str | None = None
         warnings: list[str] = []
 
         for src_filter in _resolve_source_filter(scene.preferred_source):
-            candidates = embedder.search_by_text(
-                db_path, query_vec,
-                limit=candidates_per_filter,
-                source_filter=src_filter,
-            )
+            try:
+                candidates = embedder.search_by_text(
+                    db_path, query_vec,
+                    limit=candidates_per_filter,
+                    source_filter=src_filter,
+                )
+            except embedder.EmbeddingDimensionMismatch as exc:
+                # The query was embedded with a different model than the
+                # index. Report it per scene instead of aborting the whole
+                # match.
+                matches.append(SceneMatch(
+                    n=scene.n,
+                    clip_id=None,
+                    score=0.0,
+                    source="none",
+                    warnings=[f"embedding dimension mismatch: {exc}"],
+                ))
+                break
             if not candidates:
                 continue
 
@@ -180,6 +204,10 @@ def match_episode(
             best_source = clip["source"]
             best_path = clip["path"]
             best_duration = clip["duration_sec"]
+            # Carry the library file's content hash into the episode. The
+            # index already stores it; without it a changed file would be
+            # picked up silently at export time.
+            best_sha256 = clip.get("sha256")
             break  # first match wins (priority order)
 
         if best_clip_id is None:
@@ -192,17 +220,18 @@ def match_episode(
             source=best_source,
             clip_path=best_path,
             duration_sec=best_duration,
+            sha256=best_sha256,
             warnings=warnings,
         ))
 
-    # Compute spec sha256 for idempotency
+    # Compute the hash of the scene list this match is based on.
     import hashlib
     spec_str = json.dumps([asdict(s) for s in spec.scenes], sort_keys=True)
-    spec_sha256 = hashlib.sha256(spec_str.encode()).hexdigest()
+    scenes_sha256 = hashlib.sha256(spec_str.encode()).hexdigest()
 
     return MatchedEpisode(
         spec_id=spec.id,
-        spec_sha256=spec_sha256,
+        scenes_sha256=scenes_sha256,
         matched_at=datetime.now(timezone.utc).isoformat(),
         embed_model=embed_model,
         scenes=matches,
@@ -216,10 +245,7 @@ def match_episode(
 def write_matched(matched: MatchedEpisode, output_path: Path) -> Path:
     """Write matched.json to output_path (typically serials/<show>/<ep>/matched.json)."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(asdict(matched), indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    atomic_write_json(output_path, asdict(matched))
     return output_path
 
 
@@ -229,7 +255,9 @@ def load_matched(path: Path) -> MatchedEpisode:
     scenes = [SceneMatch(**s) for s in raw["scenes"]]
     return MatchedEpisode(
         spec_id=raw["spec_id"],
-        spec_sha256=raw["spec_sha256"],
+        # Accept the old key as well: matched.json files written before the
+        # rename are still on disk.
+        scenes_sha256=raw.get("scenes_sha256") or raw.get("spec_sha256", ""),
         matched_at=raw["matched_at"],
         embed_model=raw["embed_model"],
         scenes=scenes,

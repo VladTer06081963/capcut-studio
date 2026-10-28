@@ -59,6 +59,28 @@ class LifecycleTest(unittest.TestCase):
         self.assertFalse((ep.path / ".approved").exists())
         self.assertEqual(lifecycle.current_state(ep), lifecycle.State.DRAFT)
 
+    def test_mark_matched_keeps_the_approval_sentinel(self) -> None:
+        """Matching must not disarm the render gate.
+
+        `scripts/render_final.py` refuses to render an episode without
+        `.approved`. If marking an episode matched removed that sentinel,
+        the pipeline would approve → assemble → and then be permanently
+        un-renderable, with the failure pointing at the wrong thing.
+        """
+        ep = self._make_episode()
+        lifecycle.approve(ep)
+        (ep.path / "matched.json").write_text("{}")
+
+        lifecycle.mark_matched(ep)
+
+        self.assertTrue((ep.path / ".approved").exists())
+        self.assertEqual(lifecycle.current_state(ep), lifecycle.State.MATCHED)
+
+    def test_mark_matched_requires_matched_json(self) -> None:
+        ep = self._make_episode()
+        with self.assertRaises(FileNotFoundError):
+            lifecycle.mark_matched(ep)
+
     def test_mark_rendered_requires_final_mp4(self) -> None:
         ep = self._make_episode()
         with self.assertRaises(FileNotFoundError):

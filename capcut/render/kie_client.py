@@ -46,11 +46,9 @@ from typing import Any
 
 import requests
 
+from capcut.lib.config import KIE_BASE_URL, KIE_DOWNLOAD_DIR, KIE_UPLOAD_BASE
+from capcut.lib.media import atomic_download
 from capcut.render.base import GenerationRequest, GenerationResult
-
-
-KIE_BASE_URL = "https://api.kie.ai"
-KIE_UPLOAD_BASE = "https://kieai.redpandaai.co"
 
 
 # ---------------------------------------------------------------------------
@@ -147,13 +145,12 @@ class KieClient:
         self._api_key = api_key or os.environ.get("KIE_API_KEY", "")
         self._base_url = base_url.rstrip("/")
         self._upload_base = upload_base.rstrip("/")
-        self._download_to = download_to or Path(".tmp/kie_downloads")
+        self._download_to = download_to or KIE_DOWNLOAD_DIR
         self._download_to.mkdir(parents=True, exist_ok=True)
         self._timeout = request_timeout_sec
         # Three rate-limit pools per skill docs
         self._rl_discovery = _RateLimiter(1.1)   # 1/sec shared
         self._rl_create = _RateLimiter(0.5)      # 20/10s = 0.5s
-        self._rl_poll = _RateLimiter(0.1)        # 10/sec per task
         # Per-task poll limiter so we don't blow past 10/sec on a single task
         self._last_poll_per_task: dict[str, float] = {}
 
@@ -460,11 +457,13 @@ class KieClient:
             return dest
         with self._session.get(url, stream=True, timeout=self._timeout) as r:
             r.raise_for_status()
-            with open(dest, "wb") as f:
-                for chunk in r.iter_content(chunk_size=1 << 20):
-                    if chunk:
-                        f.write(chunk)
-        return dest
+            # Atomic: the body lands in a temp sibling and is renamed into
+            # place only after the transfer completes, so this code path never
+            # publishes a partial file under the final name. Files left by the
+            # pre-atomic implementation can still be served by the cache hit
+            # above (it only checks the size), so they are not re-validated
+            # here.
+            return atomic_download(r, dest, chunk_size=1 << 20)
 
 
 __all__ = [

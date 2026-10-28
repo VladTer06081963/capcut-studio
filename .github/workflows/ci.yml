@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ffmpeg
+        # tests/test_final_renderer.py builds real source clips with ffmpeg
+        # and probes durations with ffprobe.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: pip install -r capcut/requirements.txt
+
+      - name: Run tests
+        # `pytest.ini` pins testpaths to tests/ — the default invocation is
+        # what CI runs, so a stray test_*.py elsewhere cannot silently
+        # break collection here.
+        run: python3 -m pytest -q
+
+  node:
+    name: MCP server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install MCP server dependencies
+        working-directory: mcp-server
+        # `npm ci` needs the lockfile, which is tracked for exactly this
+        # reason.
+        run: npm ci
+
+      - name: Run MCP server tests
+        working-directory: mcp-server
+        # `node --test` with no path — Node auto-discovers the test files.
+        # Passing a bare directory (`node --test test/`) does NOT work on
+        # Node 24: it is resolved as a module path, not scanned.
+        run: npm test
