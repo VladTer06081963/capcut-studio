@@ -29,7 +29,9 @@ from capcut.lib.config import (
     YOUTUBE_API_KEY,
     has_youtube,
 )
+from capcut.lib.atomic import atomic_write_json
 from capcut.lib.lifecycle import sha256_file
+from capcut.lib.media import MediaProbe, metadata_path_for, probe_media
 
 
 # ---------------------------------------------------------------------------
@@ -222,47 +224,15 @@ def download_video(
 # ffprobe metadata
 # ---------------------------------------------------------------------------
 
-@dataclass(frozen=True)
-class ProbeResult:
-    duration_sec: float
-    width: int
-    height: int
-    fps: float
+# The probe result used to be declared separately in every ingest module;
+# the implementation now lives in capcut.lib.media. The alias keeps
+# `youtube.ProbeResult(...)` and friends working.
+ProbeResult = MediaProbe
 
 
 def probe_metadata(mp4_path: Path) -> ProbeResult:
     """Use ffprobe to extract duration / resolution / fps. Requires ffmpeg."""
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe is None:
-        raise RuntimeError("ffprobe not found in PATH — install ffmpeg")
-
-    cmd = [
-        ffprobe,
-        "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate:format=duration",
-        "-of", "json",
-        str(mp4_path),
-    ]
-    out = subprocess.check_output(cmd, timeout=15).decode()
-    data = json.loads(out)
-
-    stream = (data.get("streams") or [{}])[0]
-    fmt = data.get("format") or {}
-    fps_str = stream.get("r_frame_rate", "0/1")
-    try:
-        num, den = fps_str.split("/")
-        fps = float(num) / float(den) if float(den) != 0 else 0.0
-    except (ValueError, ZeroDivisionError):
-        fps = 0.0
-
-    return ProbeResult(
-        duration_sec=float(fmt.get("duration", 0)),
-        width=int(stream.get("width", 0)),
-        height=int(stream.get("height", 0)),
-        fps=fps,
-    )
-
+    return probe_media(mp4_path, strict=True)
 
 # ---------------------------------------------------------------------------
 # metadata.json writer
@@ -298,8 +268,8 @@ def write_metadata(
         "youtube_id": video_meta.id,
         "youtube_title": video_meta.title,
     }
-    metadata_path = mp4_path.with_suffix(mp4_path.suffix + ".metadata.json")
-    metadata_path.write_text(json.dumps(metadata, indent=2, ensure_ascii=False))
+    metadata_path = metadata_path_for(mp4_path)
+    atomic_write_json(metadata_path, metadata)
     return metadata_path
 
 

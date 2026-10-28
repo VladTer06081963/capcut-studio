@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from capcut.episode.spec_writer import load_spec
 from capcut.lib.config import LIBRARY_ROOT, SERIALS_ROOT
+from capcut.lib.media import metadata_path_for
 from capcut.render.base import GenerationRequest
 from capcut.render.kie_client import KieClient
 
@@ -53,7 +54,11 @@ def main() -> int:
         clip_id = f"ai:{args.serial}:{args.ep}-s{scene.n:02d}"
         file_name = f"{args.ep}-s{scene.n:02d}"
         mp4_path = out_dir / f"{file_name}.mp4"
-        meta_path = out_dir / f"{file_name}.meta.json"
+        # The indexer reads `<name>.mp4.metadata.json` — the same convention
+        # every ingest module writes. Writing `<name>.meta.json` here made
+        # every AI clip index as `metadata={}`: no source, no license, no
+        # tags, and `source_filter="ai"` could never match it.
+        meta_path = metadata_path_for(mp4_path)
 
         if mp4_path.exists() and meta_path.exists():
             print(f"Scene {scene.n} ({clip_id}) already exists, skipping.")

@@ -49,6 +49,8 @@ from pathlib import Path
 from typing import Any
 
 from capcut.episode.spec_writer import EpisodeSpec
+from capcut.lib.atomic import atomic_write_json
+from capcut.lib.lifecycle import sha256_file
 from capcut.search.matcher import MatchedEpisode, SceneMatch
 
 
@@ -101,6 +103,17 @@ DEFAULT_TRANSITION_OPEN = "fade"
 DEFAULT_TRANSITION_CLOSE = "fade"
 
 
+class ClipIntegrityError(RuntimeError):
+    """A library clip changed after the episode referenced it.
+
+    Episodes reference library clips by id **and** the sha256 of the source
+    file. If the file changes, the episode's reference is stale: what gets
+    rendered is no longer what was matched, reviewed and approved. Per
+    AGENTS.md the reference must "break loudly" rather than silently pick up
+    the new content.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Scene → clip conversion
 # ---------------------------------------------------------------------------
@@ -117,11 +130,48 @@ def _scene_track_type(track: str) -> str:
 
 
 def _resolve_path(library_root: Path, relative_path: str | None) -> str | None:
-    """Resolve relative library path to absolute. Returns None if missing."""
+    """Resolve relative library path to absolute. Returns None if missing.
+
+    The result must stay inside the library root: a `..` segment in the
+    stored path must not resolve to a file outside the library.
+    """
     if not relative_path:
         return None
-    abs_path = (library_root / relative_path).resolve()
+    root = library_root.resolve()
+    abs_path = (root / relative_path).resolve()
+    if abs_path != root and root not in abs_path.parents:
+        return None
     return str(abs_path) if abs_path.exists() else None
+
+
+def _verify_clip_integrity(
+    abs_path: Path,
+    expected_sha256: str | None,
+    *,
+    scene_n: int,
+) -> None:
+    """Verify the library file still matches the hash recorded at match time.
+
+    A legacy `matched.json` written before the hash was carried carries no
+    `sha256`; there is nothing to compare, so the check is skipped.
+
+    Raises:
+        ClipIntegrityError: the file's content hash differs from the recorded
+            one — the episode's reference to it is stale.
+    """
+    if not expected_sha256:
+        return
+    actual = sha256_file(abs_path)
+    if actual != expected_sha256:
+        raise ClipIntegrityError(
+            f"scene {scene_n}: library clip {abs_path} changed since it was "
+            f"matched.\n"
+            f"  expected sha256: {expected_sha256}\n"
+            f"  actual   sha256: {actual}\n"
+            f"The episode would render different media than the one that was "
+            f"matched and approved. Re-run the matcher to re-reference the "
+            f"episode, or restore the original file."
+        )
 
 
 def _pick_transition(
@@ -169,6 +219,10 @@ def assemble_timeline(
         fps: project fps (default 24).
 
     Returns: ConcatTimeline ready for JSON serialization.
+
+    Raises:
+        ClipIntegrityError: a referenced library file no longer matches the
+            sha256 recorded when the episode was matched.
     """
     # Group clips by track type
     tracks_by_type: dict[str, list[ConcatClip]] = {
@@ -210,6 +264,7 @@ def assemble_timeline(
                 warnings.append(f"scene {scene_spec.n}: matched clip file not found at {scene_match.clip_path}")
                 unmatched.append(scene_spec.n)
                 continue
+            _verify_clip_integrity(Path(src), scene_match.sha256, scene_n=scene_spec.n)
             clip = ConcatClip(
                 id=f"scene-{scene_spec.n}",
                 src=src,
@@ -248,6 +303,7 @@ def assemble_timeline(
             if src is None:
                 warnings.append(f"scene {scene_spec.n}: overlay file not found")
                 continue
+            _verify_clip_integrity(Path(src), scene_match.sha256, scene_n=scene_spec.n)
             clip = ConcatClip(
                 id=f"scene-{scene_spec.n}",
                 src=src,
@@ -294,10 +350,7 @@ def assemble_timeline(
 def write_concat_timeline(timeline: ConcatTimeline, output_path: Path) -> Path:
     """Write Concat-compatible JSON to output_path (typically rendered/draft.json)."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(asdict(timeline), indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    atomic_write_json(output_path, asdict(timeline))
     return output_path
 
 
@@ -323,6 +376,7 @@ __all__ = [
     "ConcatTrack",
     "ConcatProject",
     "ConcatTimeline",
+    "ClipIntegrityError",
     "assemble_timeline",
     "write_concat_timeline",
     "load_concat_timeline",

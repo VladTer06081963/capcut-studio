@@ -11,6 +11,7 @@ from unittest.mock import patch
 from capcut.assemble import concat_exporter
 from capcut.episode.spec_writer import EpisodeSpec, SceneSpec, SCHEMA_VERSION
 from capcut.index import embedder
+from capcut.lib.lifecycle import sha256_file
 from capcut.search import matcher
 
 
@@ -189,7 +190,7 @@ class ConcatAssemblerTest(unittest.TestCase):
 
     def _matched_with_clips(self, n: int, paths: list[str]) -> matcher.MatchedEpisode:
         return matcher.MatchedEpisode(
-            spec_id="ep-test", spec_sha256="x" * 64,
+            spec_id="ep-test", scenes_sha256="x" * 64,
             matched_at="2026-10-09T21:00:00Z",
             embed_model="bge-large-en-v1.5",
             scenes=[
@@ -233,7 +234,7 @@ class ConcatAssemblerTest(unittest.TestCase):
     def test_unmatched_video_scene_records_warning(self) -> None:
         spec = _make_spec(n_scenes=1, with_audio=False)
         matched = matcher.MatchedEpisode(
-            spec_id="ep", spec_sha256="x" * 64,
+            spec_id="ep", scenes_sha256="x" * 64,
             matched_at="2026-10-09T21:00:00Z",
             embed_model="bge",
             scenes=[matcher.SceneMatch(n=1, clip_id=None, score=0.0, source="none")],
@@ -255,6 +256,113 @@ class ConcatAssemblerTest(unittest.TestCase):
         loaded = concat_exporter.load_concat_timeline(path)
         self.assertEqual(loaded.project.name, f"{spec.show}-{spec.id}")
         self.assertEqual(len(loaded.tracks), 1)
+
+
+# ---------------------------------------------------------------------------
+# Clip integrity: the library file's hash must reach the episode
+# ---------------------------------------------------------------------------
+
+class Sha256PropagationTest(unittest.TestCase):
+    """A matched episode references a library clip by id **and** content hash.
+
+    Without the hash the reference breaks quietly: replacing the file in the
+    library changes what gets rendered without anyone noticing.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.mkdtemp()
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _matched(self) -> matcher.MatchedEpisode:
+        spec = _make_spec(n_scenes=1, with_audio=False)
+        with patch.object(embedder, "lm_studio_alive", return_value=True), \
+             patch.object(embedder, "embed_text", return_value=[0.1] * 384), \
+             patch.object(embedder, "search_by_text", return_value=[
+                 ("ai:test:clip", 0.85),
+             ]), \
+             patch.object(embedder, "get_clip_by_id", return_value={
+                 "id": "ai:test:clip", "path": "ai/test/clip.mp4",
+                 "source": "ai", "duration_sec": 5.0,
+                 "sha256": "b" * 64, "caption": "", "embedding": None,
+                 "tags": [], "width": 1920, "height": 1080, "fps": 24.0,
+                 "indexed_at": "2026-10-28T00:00:00Z",
+             }):
+            return matcher.match_episode(spec)
+
+    def test_matcher_records_the_library_file_hash(self) -> None:
+        matched = self._matched()
+        self.assertEqual(matched.scenes[0].sha256, "b" * 64)
+
+    def test_hash_survives_the_matched_json_roundtrip(self) -> None:
+        matched = self._matched()
+        path = Path(self._tmp) / "matched.json"
+        matcher.write_matched(matched, path)
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(raw["scenes"][0]["sha256"], "b" * 64)
+
+        loaded = matcher.load_matched(path)
+        self.assertEqual(loaded.scenes[0].sha256, "b" * 64)
+
+
+class ClipIntegrityTest(unittest.TestCase):
+    """A library file that changed after matching must break loudly."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.mkdtemp()
+        self.lib_root = Path(self._tmp) / "library"
+        (self.lib_root / "ai" / "reznik").mkdir(parents=True)
+        self.clip = self.lib_root / "ai" / "reznik" / "walk.mp4"
+        self.clip.write_bytes(b"\x00" * 100)
+        self.sha = sha256_file(self.clip)
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _matched(self, sha: str | None) -> matcher.MatchedEpisode:
+        return matcher.MatchedEpisode(
+            spec_id="ep", scenes_sha256="x" * 64,
+            matched_at="2026-10-28T00:00:00Z",
+            embed_model="bge",
+            scenes=[matcher.SceneMatch(
+                n=1, clip_id="ai:reznik:walk", score=0.9, source="ai",
+                clip_path="ai/reznik/walk.mp4", duration_sec=5.0, sha256=sha,
+            )],
+        )
+
+    def test_matching_hash_is_accepted(self) -> None:
+        spec = _make_spec(n_scenes=1, with_audio=False)
+        timeline = concat_exporter.assemble_timeline(
+            spec, self._matched(self.sha), library_root=self.lib_root
+        )
+        video_tracks = [t for t in timeline.tracks if t.type == "video"]
+        self.assertEqual(len(video_tracks[0].clips), 1)
+
+    def test_changed_file_breaks_loudly(self) -> None:
+        spec = _make_spec(n_scenes=1, with_audio=False)
+        # The library file is replaced after the episode referenced it.
+        self.clip.write_bytes(b"\x01" * 100)
+        with self.assertRaises(concat_exporter.ClipIntegrityError) as ctx:
+            concat_exporter.assemble_timeline(
+                spec, self._matched(self.sha), library_root=self.lib_root
+            )
+        message = str(ctx.exception)
+        self.assertIn("changed since it was matched", message)
+        self.assertIn(self.sha, message)
+
+    def test_legacy_matched_without_hash_is_not_verified(self) -> None:
+        """A matched.json written before the hash was carried still works."""
+        spec = _make_spec(n_scenes=1, with_audio=False)
+        self.clip.write_bytes(b"\x01" * 100)  # changed, but nothing to compare
+        timeline = concat_exporter.assemble_timeline(
+            spec, self._matched(None), library_root=self.lib_root
+        )
+        video_tracks = [t for t in timeline.tracks if t.type == "video"]
+        self.assertEqual(len(video_tracks[0].clips), 1)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,14 @@
 """
-Episode spec writer — brief.md + bible/<show>.md → spec.json via Qwen3-Max.
+Episode spec writer — brief.md + bible/<show>.md → spec.json.
 
-Reads a markdown brief and the show's bible template, sends to OpenRouter
-(Qwen3-Max), parses the structured response into a validated EpisodeSpec,
-and writes it to `serials/<show>/<ep-id>/spec.json`.
+Reads a markdown brief and the show's bible template, sends it to the
+configured text model, parses the structured response into a validated
+EpisodeSpec, and writes it to `serials/<show>/<ep-id>/spec.json`.
+
+Routing: the local LM Studio model is tried first; OpenRouter is a
+fallback and is only reached when the local provider is unreachable. A
+cloud route is therefore a *billable* call — see AGENTS.md → "AI providers"
+for the approval rule.
 
 Architecture notes:
 - LLM is told to output strict JSON (no prose around it).
@@ -20,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import os
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -28,10 +34,11 @@ from typing import Any
 
 import requests
 
+from capcut.lib.atomic import atomic_write_json
 from capcut.lib.config import (
     DEFAULT_TEXT_PROVIDER,
     GEMINI_API_KEY,
-    GEMINI_BASE_URL,
+    GEMINI_NATIVE_BASE_URL,
     LM_STUDIO_URL,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
@@ -44,10 +51,14 @@ from capcut.lib.lifecycle import sha256_file
 
 SCHEMA_VERSION = 1
 
-# Default model for spec writing. Override per-call with `model=`.
-# Default is LM Studio local (qwen2.5-coder is what user typically loads).
-# Falls back to OpenRouter if LM Studio unreachable.
-DEFAULT_MODEL = "qwen2.5-coder-7b-instruct-mlx"
+# Default model for spec writing. Override per-call with `model=`, or
+# per-machine with the SPEC_WRITER_MODEL env var.
+# The default is the *local* LM Studio model (qwen2.5-coder is what the user
+# typically loads) — the cloud route is a fallback, not the default, and a
+# fallback to a paid provider is not free.
+DEFAULT_MODEL = os.environ.get(
+    "SPEC_WRITER_MODEL", "qwen2.5-coder-7b-instruct-mlx"
+)
 
 # Hard cap on input tokens to keep cost predictable.
 MAX_BRIEF_CHARS = 8_000
@@ -344,9 +355,12 @@ def _call_google_studio_only(
         raise RuntimeError("GEMINI_API_KEY not configured in .env")
 
     # model string might be 'gemini-1.5-pro'
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+    url = f"{GEMINI_NATIVE_BASE_URL}/models/{model}:generateContent"
     headers = {
         "Content-Type": "application/json",
+        # The key travels in a header, not in the query string: a URL ends
+        # up in proxy logs, server logs and shell history.
+        "x-goog-api-key": GEMINI_API_KEY or "",
     }
 
     # Convert OpenAI messages to Gemini contents
@@ -453,21 +467,46 @@ def extract_bible_excerpt(bible_text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _parse_spec_dict(raw: dict[str, Any]) -> EpisodeSpec:
-    """Convert raw dict from LLM (or hand-written JSON) into EpisodeSpec."""
-    scenes = [SceneSpec(**s) for s in raw.get("scenes", [])]
-    return EpisodeSpec(
-        schema=raw.get("schema", SCHEMA_VERSION),
-        id=raw["id"],
-        show=raw["show"],
-        title=raw.get("title", ""),
-        summary=raw.get("summary", ""),
-        scenes=scenes,
-        provider=raw.get("provider", {}),
-        model=raw.get("model", "unknown"),
-        created_at=raw.get("created_at", datetime.now(timezone.utc).isoformat()),
-        brief_sha256=raw.get("brief_sha256", ""),
-        bible_sha256=raw.get("bible_sha256", ""),
-    )
+    """Convert raw dict from LLM (or hand-written JSON) into EpisodeSpec.
+
+    Raises:
+        ValueError: the payload is not a valid spec — with the offending
+            scene named, instead of a bare TypeError/KeyError from the
+            dataclass constructor.
+    """
+    scenes: list[SceneSpec] = []
+    for i, s in enumerate(raw.get("scenes", [])):
+        try:
+            scenes.append(SceneSpec(**s))
+        except TypeError as exc:
+            raise ValueError(
+                f"scene {i + 1} has an unexpected field: {exc}. "
+                f"Expected fields: {', '.join(sorted(SceneSpec.__dataclass_fields__))}."
+            ) from exc
+        except KeyError as exc:
+            raise ValueError(
+                f"scene {i + 1} is missing the required field {exc}. "
+                f"Expected fields: {', '.join(sorted(SceneSpec.__dataclass_fields__))}."
+            ) from exc
+    try:
+        return EpisodeSpec(
+            schema=raw.get("schema", SCHEMA_VERSION),
+            id=raw["id"],
+            show=raw["show"],
+            title=raw.get("title", ""),
+            summary=raw.get("summary", ""),
+            scenes=scenes,
+            provider=raw.get("provider", {}),
+            model=raw.get("model", "unknown"),
+            created_at=raw.get("created_at", datetime.now(timezone.utc).isoformat()),
+            brief_sha256=raw.get("brief_sha256", ""),
+            bible_sha256=raw.get("bible_sha256", ""),
+        )
+    except KeyError as exc:
+        raise ValueError(
+            f"spec is missing the required top-level field {exc}. "
+            f"Required fields: id, show."
+        ) from exc
 
 
 def write_spec_from_brief(
@@ -489,7 +528,17 @@ def write_spec_from_brief(
 
     Returns: validated EpisodeSpec (raises if validation fails).
     """
-    brief_text = brief_path.read_text(encoding="utf-8")[:MAX_BRIEF_CHARS]
+    brief_text = brief_path.read_text(encoding="utf-8")
+    if len(brief_text) > MAX_BRIEF_CHARS:
+        # Silently truncating would build a spec for a *part* of the brief
+        # and look like a complete one.
+        print(
+            f"WARNING: {brief_path} is {len(brief_text)} characters; only the "
+            f"first {MAX_BRIEF_CHARS} are used. The spec will cover a part of "
+            f"the brief — shorten it or split the episode.",
+            file=sys.stderr,
+        )
+        brief_text = brief_text[:MAX_BRIEF_CHARS]
     bible_text = bible_path.read_text(encoding="utf-8")
     bible_excerpt = extract_bible_excerpt(bible_text)
 
@@ -514,11 +563,7 @@ def write_spec_from_brief(
             bible_sha256=bible_sha,
         )
         # Skip validation for dry-run stub — empty scenes are expected
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            json.dumps(asdict(spec), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        atomic_write_json(output_path, asdict(spec))
         return spec
     else:
         user_prompt = _build_user_prompt(brief_text, bible_excerpt)
@@ -549,11 +594,7 @@ def write_spec_from_brief(
         raise ValueError(f"spec validation failed:\n  - " + "\n  - ".join(issues))
 
     # Write
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(asdict(spec), indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    atomic_write_json(output_path, asdict(spec))
     return spec
 
 

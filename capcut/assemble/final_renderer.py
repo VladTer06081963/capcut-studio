@@ -36,6 +36,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from capcut.lib.media import probe_media
+
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
@@ -104,12 +106,16 @@ def _video_clips(timeline: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _concat_list_path(timeline: dict[str, Any]) -> str:
-    """Deterministic temp name for the ffmpeg concat list, derived from
-    the project name so concurrent renders of different episodes do not
-    collide."""
+    """Unique temp name for the ffmpeg concat list.
+
+    The name carries the pid and a random suffix: two concurrent renders of
+    the *same* episode would otherwise write the same list file and clobber
+    each other's input. (The output video already has a unique temp path —
+    the list file did not.)
+    """
     name = (timeline.get("project", {}) or {}).get("name", "episode")
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
-    return f"capcut_final_{safe}_concat.txt"
+    return f"capcut_final_{safe}_{os.getpid()}_{uuid.uuid4().hex[:8]}_concat.txt"
 
 
 def _parse_resolution(resolution: str) -> tuple[int, int]:
@@ -390,30 +396,10 @@ def probe_duration(
 ) -> float | None:
     """Return the media duration in seconds, or None if ffprobe is
     unavailable / the file is unreadable."""
-    if shutil.which(ffprobe_bin) is None:
-        return None
-    try:
-        proc = subprocess.run(
-            [
-                ffprobe_bin,
-                "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                str(path),
-            ],
-            capture_output=True,
-            text=True,
-            stdin=subprocess.DEVNULL,
-            timeout=timeout,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if proc.returncode != 0:
-        return None
-    try:
-        return float((proc.stdout or "").strip())
-    except ValueError:
-        return None
+    probe = probe_media(
+        path, strict=False, ffprobe_bin=ffprobe_bin, timeout=timeout
+    )
+    return probe.duration_sec or None
 
 
 __all__ = [

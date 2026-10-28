@@ -104,28 +104,20 @@ class VideoProvider(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# Model registry (LEGACY — prefer live discovery via KieClient.list_models)
+# Model registry
 # ---------------------------------------------------------------------------
 #
-# This hardcoded catalog is OUT OF DATE with kie.ai as of Oct 2026.
-# Use `KieClient().list_models(task_type="Text to Video")` for the live
-# catalog of 200+ models. Kept here only for backward compatibility with
-# code that referenced KNOWN_MODELS; treat as a fallback hint, not a source
-# of truth. Real model names use the "provider/name" format (e.g.
-# "kling/v2-1-master-text-to-video") and are discovered at runtime.
-
-KNOWN_MODELS: dict[str, dict[str, Any]] = {
-    # Legacy convenience aliases — DO NOT rely on these for actual calls.
-    "veo-3-fast":         {"provider": "kie", "kind": "video", "price_per_sec": 0.0375, "max_duration_sec": 8,  "supports_audio": True,  "supports_image_input": True,  "_alias_for": "google/veo-3-fast"},
-    "veo-3-quality":      {"provider": "kie", "kind": "video", "price_per_sec": 0.25,   "max_duration_sec": 8,  "supports_audio": True,  "supports_image_input": True,  "_alias_for": "google/veo-3-quality"},
-    "kling-2.0":          {"provider": "kie", "kind": "video", "price_per_sec": 0.05,   "max_duration_sec": 10, "supports_audio": True,  "supports_image_input": True,  "_alias_for": "kling/v2-1-master-text-to-video"},
-    "runway-gen-4":       {"provider": "kie", "kind": "video", "price_per_sec": 0.50,   "max_duration_sec": 10, "supports_audio": False, "supports_image_input": True,  "_alias_for": "runway/gen-4"},
-}
-
+# There is no hardcoded catalog here on purpose. A stale price/model list
+# is worse than none: it looks authoritative and gets quoted. Discover the
+# live catalog instead:
+#
+#     KieClient().list_models(task_type="Text to Video")
+#
+# Real model names use the "provider/name" format (e.g.
+# "kling/v2-1-master-text-to-video").
 
 __all__ = [
     "GenerationRequest",
     "GenerationResult",
     "VideoProvider",
-    "KNOWN_MODELS",
 ]

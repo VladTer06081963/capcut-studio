@@ -1,5 +1,57 @@
 # Change: Hybrid media workflow with isolated prototype and production profiles
 
+## Why
+
+The project needs a way to develop creative direction while preserving a path
+to high-quality finished work — and without a software default ever choosing a
+paid model on the user's behalf. Prototype assets, paid generations and
+production episodes currently share one library, one index and one set of
+paths, so a cheap experiment can end up inside the production source of truth.
+The approval panel already exists and works, but nothing consumes it, so it
+reads as an enforcement barrier while it is not one.
+
+## What Changes
+
+- Split the workflow into two logical profiles — prototype and production —
+  with separate configuration, library/index, temporary and output roots.
+- Consume the model-approval artifact at every generation entrypoint and
+  remove the implicit provider/model fallback.
+- Make promotion from prototype to production an explicit, reviewable and
+  provenance-preserving operation.
+- Add a reviewed still-image overlay track to the episode timeline, verified
+  against a local Concat fixture rather than assumed.
+- Keep the local model-approval frontend as the selection surface; this
+  change does not replace it.
+
+## Capabilities
+
+**New Capabilities**
+
+- `workflow-profiles` — prototype/production separation and the paid-generation
+  approval contract.
+- `media-assets` — asset provenance, content hashes and the stock-source
+  registry.
+- `concat-still-image-track` — still images as parallel, time-bounded visual
+  clips in the Concat timeline.
+
+**Modified Capabilities**
+
+- None. This change introduces all three capabilities; it does not alter an
+  existing one.
+
+## Impact
+
+- `capcut/lib/config.py` (profile roots, approval configuration),
+  `capcut/render/provider_router.py` (approval claim, no implicit fallback),
+  `capcut/index/embedder.py` and `capcut/search/matcher.py` (per-profile
+  index), `capcut/assemble/concat_exporter.py` (image overlay track),
+  `scripts/assemble_episode.py`.
+- New profile configuration files and per-profile data directories.
+- `frontend/model-approval/` keeps its current surface; only its consumer
+  side changes.
+- No new dependency. No provider is selected or made permanent by this
+  change.
+
 ## Status
 
 Proposed; implementation has not started. No external generation or paid API

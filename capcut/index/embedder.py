@@ -44,6 +44,7 @@ from capcut.lib.config import (
     LM_STUDIO_EMBED_MODEL,
     LM_STUDIO_URL,
 )
+from capcut.lib.media import metadata_path_for, probe_media
 
 
 # ---------------------------------------------------------------------------
@@ -129,10 +130,16 @@ def caption_image(image_path: Path, *, timeout: int = 60) -> str:
     return data["choices"][0]["message"]["content"].strip()
 
 
-def embed_text(text: str, *, timeout: int = 30) -> list[float]:
-    """Embed text via LM Studio embedding endpoint (bge-large-en-v1.5 default)."""
+def embed_text(
+    text: str, *, model: str | None = None, timeout: int = 30
+) -> list[float]:
+    """Embed text via the LM Studio embedding endpoint.
+
+    `model` overrides the configured embedding model for this call; the
+    default comes from `LM_STUDIO_EMBED_MODEL`.
+    """
     payload = {
-        "model": LM_STUDIO_EMBED_MODEL,
+        "model": model or LM_STUDIO_EMBED_MODEL,
         "input": text,
     }
     url = f"{LM_STUDIO_URL}/v1/embeddings"
@@ -202,7 +209,7 @@ class IndexStats:
 
 def _load_metadata_for(mp4_path: Path) -> dict[str, Any]:
     """Read sibling .metadata.json. Empty dict if missing."""
-    meta_path = mp4_path.with_suffix(mp4_path.suffix + ".metadata.json")
+    meta_path = metadata_path_for(mp4_path)
     if not meta_path.exists():
         return {}
     try:
@@ -221,44 +228,39 @@ def _is_already_indexed(conn: sqlite3.Connection, clip_id: str, sha256: str) -> 
 
 
 def _probe_for_indexing(mp4_path: Path) -> dict[str, Any]:
-    """Quick probe: duration / width / height / fps via ffprobe."""
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe is None:
-        return {}
-    cmd = [
-        ffprobe, "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate:format=duration",
-        "-of", "json",
-        str(mp4_path),
-    ]
-    try:
-        out = subprocess.check_output(cmd, timeout=15).decode()
-    except Exception:
-        return {}
-    data = json.loads(out)
-    stream = (data.get("streams") or [{}])[0]
-    fmt = data.get("format") or {}
-    fps_str = stream.get("r_frame_rate", "0/1")
-    try:
-        num, den = fps_str.split("/")
-        fps = float(num) / float(den) if float(den) != 0 else 0.0
-    except (ValueError, ZeroDivisionError):
-        fps = 0.0
+    """Quick probe: duration / width / height / fps via ffprobe.
+
+    Lenient: a file that cannot be probed yields zeros, and the caller
+    skips clips with a non-positive duration.
+    """
+    probe = probe_media(mp4_path, strict=False)
     return {
-        "duration_sec": float(fmt.get("duration", 0)),
-        "width": int(stream.get("width", 0)),
-        "height": int(stream.get("height", 0)),
-        "fps": fps,
+        "duration_sec": probe.duration_sec,
+        "width": probe.width,
+        "height": probe.height,
+        "fps": probe.fps,
     }
 
+def _build_clip_id(
+    mp4_path: Path,
+    metadata: dict[str, Any],
+    library_root: Path,
+) -> str:
+    """Prefer metadata.id (canonical); fall back to the path relative to the
+    library root.
 
-def _build_clip_id(mp4_path: Path, metadata: dict[str, Any]) -> str:
-    """Prefer metadata.id (canonical); fallback to relative path."""
+    The fallback has to be the *relative* path, not the file name: two assets
+    with the same base name in different shows or episodes would otherwise
+    share one id, and the second one indexed would silently replace the
+    first in the shared index.
+    """
     if "id" in metadata and metadata["id"]:
         return metadata["id"]
-    # Fallback: source/relative/path.mp4
-    return f"unknown:{mp4_path.name}"
+    try:
+        rel = mp4_path.resolve().relative_to(library_root.resolve())
+    except ValueError:
+        rel = mp4_path
+    return f"unknown:{rel.as_posix()}"
 
 
 def _build_embedding_text(metadata: dict[str, Any], caption: str) -> str:
@@ -292,7 +294,8 @@ def index_clip(
 
     sha256 = sha256_file(mp4_path)
     metadata = _load_metadata_for(mp4_path)
-    clip_id = _build_clip_id(mp4_path, metadata)
+    rel_path = str(mp4_path.relative_to(library_root))
+    clip_id = _build_clip_id(mp4_path, metadata, library_root)
 
     if _is_already_indexed(conn, clip_id, sha256):
         return False
@@ -333,13 +336,24 @@ def index_clip(
         frame_path.unlink()
 
     # Insert row
-    rel_path = str(mp4_path.relative_to(library_root))
     conn.execute(
         """
-        INSERT OR REPLACE INTO clips
+        INSERT INTO clips
         (id, path, sha256, source, caption, embedding, tags,
          duration_sec, width, height, fps, indexed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            path = excluded.path,
+            sha256 = excluded.sha256,
+            source = excluded.source,
+            caption = excluded.caption,
+            embedding = excluded.embedding,
+            tags = excluded.tags,
+            duration_sec = excluded.duration_sec,
+            width = excluded.width,
+            height = excluded.height,
+            fps = excluded.fps,
+            indexed_at = excluded.indexed_at
         """,
         (
             clip_id,
@@ -356,6 +370,10 @@ def index_clip(
             datetime.now(timezone.utc).isoformat(),
         ),
     )
+    # Commit here so that a direct caller cannot lose the row by closing the
+    # connection. index_library() commits as well — a redundant commit is
+    # harmless, a missing one is not.
+    conn.commit()
     return True
 
 
