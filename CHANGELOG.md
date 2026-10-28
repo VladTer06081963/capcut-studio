@@ -100,6 +100,13 @@ read-only аудит всего дерева. Аудит нашёл **два и�
 - `python3 -m pytest -q` (из корня) → **207 passed** (было 161 → +46).
   До фикса P0-5 дефолтный вызов давал `Interrupted: 1 error during
   collection`, 0 тестов.
+- **Первый прогон CI поймал переносимостный баг в существующем тесте**,
+  который macOS показать не может: фейковый `ffmpeg` использовал башизм
+  `"${@: -1}"` под `#!/bin/sh`. На macOS `/bin/sh` — это bash, на Linux
+  это dash, где такая подстановка даёт `Bad substitution` и шим ничего
+  не пишет. Заменено на POSIX-эквивалент
+  (`for last_arg; do :; done`). Проверено напрямую под `/bin/dash`:
+  старый вариант — exit 2, новый — exit 0 с корректной записью.
 - `npm test` (MCP) → 4/4; `python3 -m unittest tests.test_convert_draft` → 3/3.
 - `openspec validate --all` → 3 passed, 0 failed.
 - Внешние API, сеть и Concat не затрагивались: тесты работают на подставных
