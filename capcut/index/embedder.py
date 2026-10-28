@@ -200,6 +200,7 @@ class IndexStats:
     scanned: int = 0
     indexed: int = 0
     skipped: int = 0          # already indexed, sha256 unchanged
+    removed: int = 0           # orphan rows dropped (path-derived ids)
     errors: list[tuple[str, str]] = None  # (clip_path, error)
 
     def __post_init__(self) -> None:
@@ -396,6 +397,7 @@ def index_library(
     """
     stats = IndexStats()
     conn = init_db(db_path)
+    seen_ids: set[str] = set()
 
     for mp4_path in sorted(library_root.rglob("*.mp4")):
         # Skip hidden / .tmp directories
@@ -403,6 +405,10 @@ def index_library(
             continue
         stats.scanned += 1
         try:
+            clip_id = _build_clip_id(
+                mp4_path, _load_metadata_for(mp4_path), library_root
+            )
+            seen_ids.add(clip_id)
             added = index_clip(conn, mp4_path, library_root, caption=caption, embed=embed)
             if added:
                 stats.indexed += 1
@@ -411,6 +417,23 @@ def index_library(
                 stats.skipped += 1
         except Exception as e:
             stats.errors.append((str(mp4_path), str(e)))
+
+    # Rows whose id is derived from the path (no metadata.id) die with the
+    # file: renaming or moving a clip used to reuse its id, and the
+    # path-based id no longer does. Without this the index keeps returning
+    # ids whose files no longer exist, and the matcher can match dead paths.
+    orphans = [
+        row[0]
+        for row in conn.execute(
+            "SELECT id FROM clips WHERE id LIKE 'unknown:%'"
+        ).fetchall()
+        if row[0] not in seen_ids
+    ]
+    for orphan in orphans:
+        conn.execute("DELETE FROM clips WHERE id = ?", (orphan,))
+        stats.removed += 1
+    if orphans:
+        conn.commit()
 
     conn.close()
     return stats
@@ -449,6 +472,15 @@ def get_clip_by_id(db_path: Path, clip_id: str) -> dict[str, Any] | None:
         conn.close()
 
 
+class EmbeddingDimensionMismatch(ValueError):
+    """A query was embedded with a different model than the index.
+
+    Comparing vectors of different lengths would silently truncate to the
+    shorter one and return a plausible-looking score. That is worse than no
+    result at all, so it raises instead.
+    """
+
+
 def search_by_text(
     db_path: Path,
     query_embedding: list[float],
@@ -459,6 +491,11 @@ def search_by_text(
     """Brute-force cosine similarity search. Returns [(clip_id, score), ...] sorted desc.
 
     For 10k+ clips, replace with FAISS or sqlite-vss. Until then, this is fine.
+
+    Raises:
+        EmbeddingDimensionMismatch: the index holds vectors of a different
+            length than the query — the query was embedded with another
+            model.
     """
     import math
     conn = init_db(db_path)
@@ -476,6 +513,12 @@ def search_by_text(
         scored: list[tuple[str, float]] = []
         for clip_id, blob in rows:
             vec = unpack_embedding(blob)
+            if len(vec) != len(query_embedding):
+                raise EmbeddingDimensionMismatch(
+                    f"embedding dimension mismatch for {clip_id}: index has "
+                    f"{len(vec)}, query has {len(query_embedding)}. The query was "
+                    f"embedded with a different model than the index."
+                )
             # cosine similarity
             dot = sum(a * b for a, b in zip(query_embedding, vec))
             norm_a = math.sqrt(sum(a * a for a in query_embedding))

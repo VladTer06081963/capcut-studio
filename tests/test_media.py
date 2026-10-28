@@ -10,6 +10,7 @@ Two invariants are covered here:
 
 from __future__ import annotations
 
+import gzip
 import shutil
 import tempfile
 import unittest
@@ -155,6 +156,91 @@ class AtomicDownloadTest(unittest.TestCase):
         target = self.tmp / "clip.mp4"
         media.atomic_download(_FakeResponse([b"abc", b"def"]), target)
         self.assertEqual(target.read_bytes(), b"abcdef")
+
+
+class MetadataPathIdempotencyTest(unittest.TestCase):
+    def test_applying_twice_does_not_drift_the_name(self) -> None:
+        once = media.metadata_path_for(Path("/lib/a.mp4"))
+        twice = media.metadata_path_for(once)
+        self.assertEqual(twice, once)
+        self.assertEqual(twice.name, "a.mp4.metadata.json")
+
+
+class SafeFilenameComponentTest(unittest.TestCase):
+    def test_accepts_ordinary_ids(self) -> None:
+        for good in ("abc123", "a-b_c.d", "DLSDIY7a7G4"):
+            self.assertEqual(media.safe_filename_component(good), good)
+
+    def test_rejects_traversal_and_separators(self) -> None:
+        for bad in ("", ".", "..", "a/b", "../x", "a\b", "a b", "a\x00b"):
+            self.assertIsNone(media.safe_filename_component(bad), bad)
+
+
+class TransferEncodingTest(unittest.TestCase):
+    """A gzip-encoded body must not be reported as a truncated download."""
+
+    def _resp(self, decoded: bytes, content_length: int, encoding: str | None = None):
+        class _R:
+            def __init__(self) -> None:
+                self.headers = {"Content-Length": str(content_length)}
+                if encoding:
+                    self.headers["Content-Encoding"] = encoding
+
+            def iter_content(self, chunk_size: int = 1):
+                yield decoded
+
+        return _R()
+
+    def test_gzip_body_with_compressed_content_length_is_accepted(self) -> None:
+        payload = b"A" * 5000
+        compressed = gzip.compress(payload)
+        target = Path(tempfile.mkdtemp()) / "x.mp4"
+        media.atomic_download(
+            self._resp(payload, len(compressed), "gzip"), target
+        )
+        self.assertEqual(target.read_bytes(), payload)
+
+    def test_truncated_body_is_still_rejected(self) -> None:
+        target = Path(tempfile.mkdtemp()) / "y.mp4"
+        with self.assertRaises(media.DownloadError):
+            media.atomic_download(self._resp(b"short", 9999), target)
+        self.assertFalse(target.exists())
+
+
+class ProbeMediaRobustnessTest(unittest.TestCase):
+    """ffprobe emits "N/A" for the duration of some containers."""
+
+    def _patch(self, payload: dict):
+        import json as _json
+
+        original_which = media.shutil.which
+        original_check = media.subprocess.check_output
+        media.shutil.which = lambda n: "/usr/bin/ffprobe"
+        media.subprocess.check_output = lambda cmd, timeout=None: _json.dumps(payload).encode()
+
+        def restore() -> None:
+            media.shutil.which = original_which
+            media.subprocess.check_output = original_check
+
+        self.addCleanup(restore)
+
+    def test_na_duration_yields_zeroed_result_in_both_modes(self) -> None:
+        self._patch({
+            "streams": [{"width": 1280, "height": 720, "r_frame_rate": "25/1"}],
+            "format": {"duration": "N/A"},
+        })
+        for strict in (False, True):
+            probe = media.probe_media(Path("/tmp/x.mp4"), strict=strict)
+            self.assertEqual(probe.duration_sec, 0.0)
+            self.assertEqual(probe.width, 1280)
+
+    def test_absent_duration_yields_zero(self) -> None:
+        self._patch({
+            "streams": [{"width": 640, "height": 480, "r_frame_rate": "30/1"}],
+            "format": {},
+        })
+        probe = media.probe_media(Path("/tmp/x.mp4"), strict=False)
+        self.assertEqual(probe.duration_sec, 0.0)
 
 
 if __name__ == "__main__":

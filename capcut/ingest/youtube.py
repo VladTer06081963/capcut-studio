@@ -309,13 +309,27 @@ def ingest(
     errors: list[tuple[str, str]] = []
 
     for vm in metas[:count]:
+        mp4: Path | None = None
         try:
             mp4 = download_video(vm.id, output_dir, ydl_opts)
+        except Exception as e:
+            errors.append((vm.id, str(e)))
+            # A failed transfer may have left a partial file behind.
+            if mp4 is not None:
+                try:
+                    mp4.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            continue
+        try:
             probe = probe_metadata(mp4)
             write_metadata(mp4, video_meta=vm, probe=probe)
             files.append(mp4)
         except Exception as e:
             errors.append((vm.id, str(e)))
+            # The download completed (yt-dlp writes to a .part file and
+            # renames it), so only the probe or the metadata write failed —
+            # keep the file and report it, like the other ingest sources.
 
     return IngestResult(videos=metas, files=files, errors=errors)
 

@@ -27,6 +27,20 @@ __all__ = [
 ]
 
 
+def _fsync_dir(directory: Path) -> None:
+    """Flush a directory entry so a rename survives a power loss."""
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 def atomic_write_text(path: Path, data: str, *, encoding: str = "utf-8") -> Path:
     """Write `data` to `path` atomically.
 
@@ -42,9 +56,15 @@ def atomic_write_text(path: Path, data: str, *, encoding: str = "utf-8") -> Path
     try:
         with tmp.open("w", encoding=encoding) as fh:
             fh.write(data)
+            fh.flush()
+            # The content must be on disk before the rename lands. Otherwise a
+            # power loss can leave the rename durable while the content is
+            # not — the classic zero-length-after-crash hazard.
+            os.fsync(fh.fileno())
         os.replace(tmp, path)
-    except Exception:
-        # Never leave a partial file behind.
+        _fsync_dir(path.parent)
+    except BaseException:
+        # Never leave a partial file behind — not even on Ctrl-C.
         try:
             tmp.unlink()
         except OSError:

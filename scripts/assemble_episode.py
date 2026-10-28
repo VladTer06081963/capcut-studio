@@ -59,7 +59,7 @@ def main() -> int:
     print(f"[assemble] building Concat timeline")
     try:
         timeline = concat_exporter.assemble_timeline(spec, matched, library_root=library_root)
-    except concat_exporter.ClipIntegrityError as e:
+    except (concat_exporter.ClipIntegrityError, OSError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
     draft_path = ep_dir / "rendered" / "draft.json"

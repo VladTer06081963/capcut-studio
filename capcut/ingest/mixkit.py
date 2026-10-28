@@ -295,16 +295,26 @@ def ingest(
         mp4: Path | None = None
         try:
             mp4 = download_video(vm, output_dir, polite_delay_sec)
+        except Exception as e:
+            errors.append((vm.id, str(e)))
+            # A failed transfer may have left a partial file behind.
+            if mp4 is not None:
+                try:
+                    mp4.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            continue
+        try:
             probe = probe_metadata(mp4)
             write_metadata(mp4, video_meta=vm, probe=probe)
             files.append(mp4)
         except Exception as e:
             errors.append((vm.id, str(e)))
-            # The file is unusable — do not leave it in the library under a
-            # valid name. A truncated MP4 looks like a valid MP4 until
-            # something tries to decode it.
-            if mp4 is not None:
-                mp4.unlink(missing_ok=True)
+            # The download itself was byte-complete (atomic_download
+            # guarantees that) — only the probe or the metadata write
+            # failed. Deleting it would throw away a good download, and with
+            # ffprobe missing every file would be deleted and nothing would
+            # ever be ingested. The file is kept and reported instead.
 
     return IngestResult(videos=metas, files=files, errors=errors)
 

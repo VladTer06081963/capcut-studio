@@ -166,11 +166,24 @@ def match_episode(
         warnings: list[str] = []
 
         for src_filter in _resolve_source_filter(scene.preferred_source):
-            candidates = embedder.search_by_text(
-                db_path, query_vec,
-                limit=candidates_per_filter,
-                source_filter=src_filter,
-            )
+            try:
+                candidates = embedder.search_by_text(
+                    db_path, query_vec,
+                    limit=candidates_per_filter,
+                    source_filter=src_filter,
+                )
+            except embedder.EmbeddingDimensionMismatch as exc:
+                # The query was embedded with a different model than the
+                # index. Report it per scene instead of aborting the whole
+                # match.
+                matches.append(SceneMatch(
+                    n=scene.n,
+                    clip_id=None,
+                    score=0.0,
+                    source="none",
+                    warnings=[f"embedding dimension mismatch: {exc}"],
+                ))
+                break
             if not candidates:
                 continue
 

@@ -338,5 +338,26 @@ class MetadataConventionTest(unittest.TestCase):
         self.assertEqual([r[0] for r in results], ["ai:cyber-heist:ep-01-s03"])
 
 
+class EmbeddingDimensionMismatchTest(unittest.TestCase):
+    """A query embedded with another model must not silently match."""
+
+    def test_mismatched_query_dimension_raises(self) -> None:
+        import sqlite3
+        import tempfile as _tf
+
+        db = Path(_tf.mkdtemp()) / "i.sqlite"
+        conn = embedder.init_db(db)
+        conn.execute(
+            "INSERT INTO clips (id, path, sha256, source, embedding, indexed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("c1", "p", "a" * 64, "ai", embedder.pack_embedding([1.0] + [0.0] * 383), "t"),
+        )
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(embedder.EmbeddingDimensionMismatch):
+            embedder.search_by_text(db, [1.0] + [0.0] * 767)
+
+
 if __name__ == "__main__":
     unittest.main()

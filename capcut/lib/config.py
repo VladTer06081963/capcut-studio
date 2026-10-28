@@ -212,7 +212,6 @@ __all__ = [
     "KIE_API_KEY",
     "KIE_BASE_URL",
     "KIE_UPLOAD_BASE",
-    "KIE_BASE_URL",
     "KIE_DOWNLOAD_DIR",
     "YOUTUBE_API_KEY",
     "COVERR_API_KEY",
@@ -231,6 +230,5 @@ __all__ = [
     "has_coverr",
     "has_pixabay",
     "has_pexels",
-    "is_test_env",
     "ensure_dirs",
 ]

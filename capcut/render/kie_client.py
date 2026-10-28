@@ -458,9 +458,11 @@ class KieClient:
         with self._session.get(url, stream=True, timeout=self._timeout) as r:
             r.raise_for_status()
             # Atomic: the body lands in a temp sibling and is renamed into
-            # place only after the transfer completes. A partial file is never
-            # published under the final name, so the cache hit above can only
-            # ever return a complete download.
+            # place only after the transfer completes, so this code path never
+            # publishes a partial file under the final name. Files left by the
+            # pre-atomic implementation can still be served by the cache hit
+            # above (it only checks the size), so they are not re-validated
+            # here.
             return atomic_download(r, dest, chunk_size=1 << 20)
 
 

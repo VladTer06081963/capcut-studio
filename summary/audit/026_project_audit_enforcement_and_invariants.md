@@ -248,6 +248,82 @@ OpenSpec proposal и delta-spec».
 - «`pytest` не объявлен зависимостью» — `pytest>=8.0` был в `capcut/requirements.txt` с коммита `1ae31d8`.
 - «правило `.gitignore` для concat-листа содержит литеральный `<name>`» — там уже был глоб `capcut_final_*_concat.txt`; ошибка чтения.
 
+### 4.6. Ревью Kilo Code Review на PR #4 (2026-10-28)
+
+**Trigger:** Kilo Code Review на PR #4 — **30 замечаний** (12 WARNING +
+18 SUGGESTION) по диффу из 79 файлов.
+
+По правилу `audit/024` (`summary/audit/024_code_review_fixes.md`: «каждое
+WARNING проверялось против реального кода перед тем, как что-то делать»)
+каждое замечание сверено с кодом, а не принято на веру. **29 из 30
+исправлены, 1 принято с обоснованием.**
+
+Важное наблюдение: **подавляющее большинство замечаний — в коде, написанном
+в этом же PR в тот же день.** Бот нашёл ~10 настоящих дефектов, четыре из
+которых — «тихие» (ломают данные или деньги без ошибки): ложный
+«incomplete download» на любом gzip-ответе, падение `probe_media` на
+`duration:"N/A"`, молчаливое усечение векторов при несовпадении моделей
+эмбеддинга и повторная платная генерация клипа из-за смены конвенции имени
+метаданных. Это ровно тот класс, который `audit/024` называл «самым плохим
+режимом отказа», и он был бы не замечен без CI и без ревью.
+
+**Подтверждено воспроизведением (не на слово):**
+
+| Замечание | Проверка | Итог |
+|---|---|---|
+| `config.__all__` экспортирует удалённый `is_test_env` | `from capcut.lib.config import *` → `AttributeError` | ✅ настоящий |
+| `metadata_path_for` не идемпотентен | 2x → `a.mp4.metadata.json.metadata.json` | ✅ настоящий |
+| `minimax.poll()` не ходит в API | 0 HTTP-вызовов, всегда «timeout» | ✅ настоящий |
+| gzip + `Content-Length` → ложный «incomplete» | `got 5000 bytes, expected 41` | ✅ настоящий, **ломает каждую загрузку с CDN** |
+| `probe_media` на `duration:"N/A"` | `ValueError` и в strict, и в non-strict | ✅ настоящий, регрессия к `probe_duration` |
+| `search_by_text` усекает векторы | 768-мерный запрос к 384-мерному индексу → **score 1.0** | ✅ настоящий |
+| legacy `.meta.json` → платная перегенерация | skip-проверка требует нового имени | ✅ настоящий, **тратит деньги** |
+| `except requests.RequestException` не ловит `DownloadError` | `DownloadError` ⊄ `RequestException` | ✅ настоящий |
+| уникальный concat-лист не чистится | имя с pid+uuid → файл накапливается | ✅ настоящий |
+
+**Исправлено (29):** fsync файла и каталога перед/после rename в
+`capcut/lib/atomic.py` и `capcut/lib/media.py`; `except BaseException` вместо
+`except Exception` (Ctrl-C не оставляет `.part`/`.tmp` сиблингов); сверка
+`Content-Length` пропускается при `Content-Encoding` (иначе requests отдаёт
+распакованные байты против сжатой длины); `probe_media` больше не падает на
+`"N/A"`/`None`; `metadata_path_for` идемпотентен; убран дубль
+`KIE_BASE_URL` и мёртвый `is_test_env` из `__all__`; `search_by_text` бросает
+`EmbeddingDimensionMismatch` вместо молчаливого усечения, а матчер ловит его
+по сцене и пишет в warning; `index_library` вычищает осиротевшие
+`unknown:%`-строки (путь-производные id умирают вместе с файлом);
+`_verify_clip_integrity` пишет warning при пустом хэше и превращает TOCTOU в
+`ClipIntegrityError`; concat-лист удаляется в `finally`; `minimax.poll()`
+делает ровно один запрос, `DownloadError` ловится, `job_id` санитизируется
+перед тем, как стать компонентом пути, `base_url` очищается от слэша, а
+модель берётся из запроса, а не из дефолта «video-01»; ingest-циклы удаляют
+файл только при сбое **загрузки** (раньше удалялся полностью скачанный файл,
+если падал probe — при отсутствующем ffprobe не ingest'илось бы ничего);
+идентификаторы провайдера (`coverr`, `archive`) валидируются как
+безопасный компонент пути; `youtube.py` получил тот же cleanup, что и
+остальные три источника; `generate_ai_clips.py` мигрирует legacy-файл
+метаданных перед skip-проверкой; `brief_sha256` хэширует фактически
+отправленный префикс брифа, а не весь файл; комментарий про кэш в
+`kie_client` переформулирован (файлы от до-атомарной реализации не
+перепроверяются); `render_draft.py` фильтрует клипы без `src` и
+документирует, что рендерится только первая дорожка; `assemble_episode.py`
+ловит и `OSError`.
+
+**Принято без изменений (1):** `embedder.py:297` — расхождение
+`relative_to` (лексическое) и `.resolve()` в `_build_clip_id`.
+`index_library()` обходит только файлы под `library_root`, поэтому пути
+совпадают; `except ValueError` — это хендлер для файла вне корня, а не
+мёртвая ветка. Приведение к одному вычислению — косметика, не дефект.
+
+**Новые тесты (20):** идемпотентность `metadata_path_for`;
+`safe_filename_component` против traversal; gzip-ответ принимается, реально
+обрезанный — отвергается; `probe_media` на `"N/A"` и без duration;
+`EmbeddingDimensionMismatch`; `__all__` без пропусков и дублей, `import *`
+работает; девять тестов клиента MiniMax (poll действительно ходит в API,
+`DownloadError` ловится, `job_id` санитизируется, модель из запроса).
+
+**Итог:** `python3 -m pytest -q` → **227 passed** (было 207).
+
+
 ## 5. Verification
 
 | Шаг | Результат |
@@ -288,6 +364,9 @@ OpenSpec proposal и delta-spec».
 | `python3 -m py_compile` по 13 изменённым/новым Python-файлам | ✅ все компилируются |
 | `grep -r 'suffix + ".metadata.json"' capcut/ scripts/` | ✅ ноль — конвенция больше не захардкожена нигде |
 | `python3 -m pytest -q` (после P1-4/P2-1) | ✅ **188 passed** — было 179, добавлено 9 |
+| `python3 -m pytest -q` (после ревью Kilo) | ✅ **227 passed** — было 207, добавлено 20 тестов на исправленные дефекты |
+| репро замечаний Kilo до фикса | ✅ воспроизведены 9 из 9 проверенных: `import *` → AttributeError; двойной суффикс метаданных; `poll()` → 0 HTTP-вызовов; gzip → «got 5000 bytes, expected 41»; `duration:"N/A"` → ValueError; векторы 768→384 → score 1.0; legacy `.meta.json` → платная перегенерация; `DownloadError` ⊄ `RequestException`; накопление concat-листов |
+| репро замечаний Kilo после фикса | ✅ все девять дают ожидаемый результат; полный набор закрытых пунктов — в §4.6 |
 | `openspec validate --all` (после P2-21) | ✅ **3 passed, 0 failed** — оба pre-existing change'а переведены на схему v1.7.0 |
 | `python3 -m pytest -q` (после волны «мелочи») | ✅ **207 passed** — было 179, добавлено 28 (15 роутер + 13 прочие) |
 | `python3 -m pytest tests/test_config.py tests/test_embedder.py tests/test_matcher_assembler.py -q` (три порядка) | ✅ 41 passed в каждом из трёх порядков — тесты больше не зависят от порядка запуска |
@@ -348,6 +427,9 @@ OpenSpec proposal и delta-spec».
 Осталось **три** пункта из 34. Все три — контрактные, и на два из них уже
 есть готовый OpenSpec-change.
 
+- [ ] **PR #4: дождаться повторного ревью Kilo** после фиксов §4.6 и
+      смержить. Первое ревью нашло 30 замечаний, 29 исправлены; второе
+      прогонится на новом коммите.
 - [ ] **P0-1 + P0-2** — реализовать
       `openspec/changes/approval-enforcement-and-spec-binding/`
       (валиден по `openspec validate`). Это единственные пункты, где

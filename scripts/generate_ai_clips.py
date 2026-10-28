@@ -60,6 +60,16 @@ def main() -> int:
         # tags, and `source_filter="ai"` could never match it.
         meta_path = metadata_path_for(mp4_path)
 
+        # Clips generated before the convention switch carry the legacy
+        # `<name>.meta.json` sibling. Migrate it first: without this the
+        # skip check below fails, the clip is regenerated — and that is a
+        # paid call — and shutil.move() then overwrites the existing mp4.
+        if not meta_path.exists():
+            legacy = mp4_path.with_suffix(mp4_path.suffix + ".meta.json")
+            if legacy.exists():
+                legacy.rename(meta_path)
+                print(f"Scene {scene.n}: migrated legacy metadata file.")
+
         if mp4_path.exists() and meta_path.exists():
             print(f"Scene {scene.n} ({clip_id}) already exists, skipping.")
             continue

@@ -382,6 +382,14 @@ def render_final(
                 tmp_output.unlink()
         except OSError:
             pass
+        # The concat list carries a unique name (pid + uuid), so nothing
+        # overwrites it — it has to be removed explicitly, or every render
+        # attempt leaves one behind in the episode's rendered/ directory.
+        try:
+            if concat_list.exists():
+                concat_list.unlink()
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------------------------

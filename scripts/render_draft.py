@@ -7,6 +7,10 @@ Usage:
 The output is written to a temporary sibling and renamed into place only
 after ffmpeg succeeds, so a failed render never leaves a partial file where
 a valid preview used to be. Progress goes to stderr, so stdout stays clean.
+
+Known limitation: only the FIRST track is rendered. A draft whose first track
+holds no source clips (e.g. only audio) produces no preview at all, and the
+voiceover track is never mixed in.
 """
 
 from __future__ import annotations
@@ -50,6 +54,13 @@ def main() -> int:
         clips = draft["tracks"][0]["clips"]
     except (KeyError, IndexError, TypeError):
         return _fail(f"{draft_path}: expected a tracks[0].clips list")
+
+    # Audio and overlay clips can carry src=None (TTS not generated yet) and
+    # cannot be concatenated. Filter them out rather than crashing on
+    # None.replace().
+    clips = [c for c in clips if c.get("src")]
+    if not clips:
+        return _fail(f"{draft_path}: tracks[0] has no clip with a source")
 
     out_dir = draft_path.parent
     list_file = out_dir / "ffmpeg_list.txt"

@@ -23,6 +23,7 @@ for video episodes (scenes instead of panels).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import os
@@ -542,7 +543,11 @@ def write_spec_from_brief(
     bible_text = bible_path.read_text(encoding="utf-8")
     bible_excerpt = extract_bible_excerpt(bible_text)
 
-    brief_sha = sha256_file(brief_path)
+    # Hash what was ACTUALLY sent, not the whole file. For an over-cap
+    # brief the spec was built from a prefix; a hash of the full file
+    # would certify content the model never saw, and the idempotency
+    # check would then hide that the effective prompt is a prefix.
+    brief_sha = hashlib.sha256(brief_text.encode("utf-8")).hexdigest()
     bible_sha = sha256_file(bible_path)
 
     model = model or DEFAULT_MODEL

@@ -79,6 +79,26 @@ class ConfigTest(unittest.TestCase):
             self.assertTrue(config.STOCK_DIR.exists())
             shutil.rmtree("/tmp/_capcut_test_lib", ignore_errors=True)
 
+    def test_public_api_matches_the_exports(self) -> None:
+        """Every name in __all__ must actually exist on the module."""
+        from capcut.lib import config
+
+        missing = [n for n in config.__all__ if not hasattr(config, n)]
+        self.assertEqual(missing, [], f"__all__ names with no attribute: {missing}")
+
+    def test_star_import_works(self) -> None:
+        from capcut.lib import config
+
+        namespace: dict = {}
+        exec("from capcut.lib.config import *", namespace)
+        self.assertTrue(namespace)
+
+    def test_no_duplicate_exports(self) -> None:
+        from capcut.lib import config
+
+        duplicates = [n for n in set(config.__all__) if config.__all__.count(n) > 1]
+        self.assertEqual(duplicates, [])
+
     def test_patched_reload_does_not_leak_into_the_module(self) -> None:
         """The module must be back in sync once the patch has exited."""
         from capcut.lib import config

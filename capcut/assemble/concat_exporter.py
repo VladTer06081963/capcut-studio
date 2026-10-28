@@ -149,6 +149,7 @@ def _verify_clip_integrity(
     expected_sha256: str | None,
     *,
     scene_n: int,
+    warnings: list[str] | None = None,
 ) -> None:
     """Verify the library file still matches the hash recorded at match time.
 
@@ -160,8 +161,21 @@ def _verify_clip_integrity(
             one — the episode's reference to it is stale.
     """
     if not expected_sha256:
+        # Present-but-empty is "no hash" too. Say so, so a timeline built
+        # from unverified references does not look fully verified.
+        if warnings is not None:
+            warnings.append(
+                f"scene {scene_n}: no sha256 recorded for {abs_path} — "
+                f"integrity not verified"
+            )
         return
-    actual = sha256_file(abs_path)
+    try:
+        actual = sha256_file(abs_path)
+    except OSError as exc:
+        # The file vanished between the existence check and the hash.
+        raise ClipIntegrityError(
+            f"scene {scene_n}: cannot hash {abs_path}: {exc}"
+        ) from exc
     if actual != expected_sha256:
         raise ClipIntegrityError(
             f"scene {scene_n}: library clip {abs_path} changed since it was "
@@ -264,7 +278,10 @@ def assemble_timeline(
                 warnings.append(f"scene {scene_spec.n}: matched clip file not found at {scene_match.clip_path}")
                 unmatched.append(scene_spec.n)
                 continue
-            _verify_clip_integrity(Path(src), scene_match.sha256, scene_n=scene_spec.n)
+            _verify_clip_integrity(
+                Path(src), scene_match.sha256,
+                scene_n=scene_spec.n, warnings=warnings,
+            )
             clip = ConcatClip(
                 id=f"scene-{scene_spec.n}",
                 src=src,
@@ -303,7 +320,10 @@ def assemble_timeline(
             if src is None:
                 warnings.append(f"scene {scene_spec.n}: overlay file not found")
                 continue
-            _verify_clip_integrity(Path(src), scene_match.sha256, scene_n=scene_spec.n)
+            _verify_clip_integrity(
+                Path(src), scene_match.sha256,
+                scene_n=scene_spec.n, warnings=warnings,
+            )
             clip = ConcatClip(
                 id=f"scene-{scene_spec.n}",
                 src=src,
